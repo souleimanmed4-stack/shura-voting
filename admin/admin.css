@@ -1,0 +1,251 @@
+:root {
+  --primary: #153954;
+  --primary-light: #205477;
+  --background: #f3f6f9;
+  --surface: #ffffff;
+  --text: #172b3a;
+  --muted: #718096;
+  --border: #dce4eb;
+  --success: #168653;
+  --danger: #c43c3c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Tahoma, Arial, sans-serif;
+  line-height: 1.7;
+}
+
+.topbar {
+  background: var(--primary);
+  color: white;
+  padding: 16px 6%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: white;
+  color: var(--primary);
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand small {
+  opacity: .75;
+}
+
+.back {
+  color: white;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+main {
+  width: min(920px, 92%);
+  margin: 42px auto;
+  min-height: 65vh;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 24px;
+  box-shadow: 0 5px 20px rgba(20, 45, 65, .04);
+}
+
+.login-panel {
+  max-width: 520px;
+  margin: 55px auto;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.4;
+}
+
+h1 {
+  font-size: 27px;
+  margin: 5px 0 12px;
+}
+
+h2 {
+  font-size: 21px;
+  margin-top: 0;
+}
+
+.eyebrow {
+  color: var(--primary-light);
+  font-weight: bold;
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin: 18px 0 7px;
+}
+
+input,
+textarea {
+  display: block;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(32, 84, 119, .1);
+}
+
+button {
+  border: 0;
+  border-radius: 9px;
+  padding: 12px 22px;
+  margin-top: 20px;
+  background: var(--primary);
+  color: white;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--primary-light);
+}
+
+button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: #e8eef3;
+  color: var(--primary);
+}
+
+.message {
+  min-height: 24px;
+  font-size: 14px;
+}
+
+.message.success {
+  color: var(--success);
+}
+
+.message.error {
+  color: var(--danger);
+}
+
+.welcome {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 25px;
+}
+
+.welcome button {
+  margin-top: 0;
+}
+
+.elections-list {
+  display: grid;
+  gap: 12px;
+}
+
+.election-item {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.election-item h3 {
+  margin: 0 0 8px;
+}
+
+.election-item p {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+footer {
+  text-align: center;
+  padding: 22px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    padding: 14px 4%;
+  }
+
+  .back {
+    font-size: 12px;
+  }
+
+  main {
+    margin: 24px auto;
+  }
+
+  .panel {
+    padding: 20px;
+  }
+
+  .welcome {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  h1 {
+    font-size: 23px;
+  }
+}

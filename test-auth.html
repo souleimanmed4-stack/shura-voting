@@ -2,80 +2,312 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>اختبار دخول الناخب</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 50px auto;
-      padding: 20px;
-      line-height: 1.8;
-      text-align: center;
-    }
-    #result {
-      margin-top: 20px;
-      padding: 15px;
-      background: #f2f2f2;
-      border-radius: 8px;
-      overflow-wrap: anywhere;
-    }
-  </style>
-</head>
-<body>
-  <h2>اختبار نظام دخول الناخبين</h2>
-  <p>هذه صفحة اختبار مؤقتة، ولا تنفذ أي عملية تصويت.</p>
-  <button id="test">اختبار الدخول المجهول</button>
-  <div id="result">بانتظار الاختبار...</div>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>اختبار ربط عضوية الناخب</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    const db = window.supabase.createClient(
-      "https://zwduejenlwnixsfpmqqx.supabase.co",
-      "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv",
+<style>
+body {
+  font-family: Arial, sans-serif;
+  max-width: 620px;
+  margin: 32px auto;
+  padding: 18px;
+  line-height: 1.9;
+  color: #222;
+}
+
+.notice {
+  background: #fff8e7;
+  border: 1px solid #ead7a5;
+  border-radius: 9px;
+  padding: 12px;
+  margin: 16px 0;
+}
+
+input, button {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 13px;
+  margin: 8px 0;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+input {
+  border: 1px solid #bbb;
+  direction: ltr;
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+button {
+  border: 0;
+  background: #183b32;
+  color: white;
+  font-weight: bold;
+}
+
+button:disabled {
+  opacity: .55;
+}
+
+#result {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f3f5f4;
+  overflow-wrap: anywhere;
+}
+
+.item {
+  padding: 9px 0;
+  border-bottom: 1px solid #ddd;
+}
+</style>
+</head>
+
+<body>
+
+<h2>اختبار ربط رمز العضوية</h2>
+
+<div class="notice">
+هذه صفحة اختبار مؤقتة. تتحقق من رمز العضوية وتربطه بجلسة هذا الجهاز، ثم تعرض البنود النشطة فقط. لا تعرض خيارات التصويت ولا تسجل أي صوت.
+</div>
+
+<p>أدخل رمز العضوية الذي ظهر لك عند إضافة العضو:</p>
+
+<input
+  id="code"
+  type="text"
+  maxlength="24"
+  minlength="24"
+  autocomplete="one-time-code"
+  placeholder="رمز العضوية المكوّن من 24 خانة"
+  aria-label="رمز العضوية"
+>
+
+<button id="verify" type="button">
+التحقق من الرمز
+</button>
+
+<div id="result" aria-live="polite">
+بانتظار إدخال الرمز.
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+const ELECTION_ID = "d3c7a193-9e5c-462e-8b95-7aa7c6e7ab49";
+
+const SAVED_KEY = "shura-voter-elections-v1";
+
+// إعداد الاتصال بقاعدة البيانات
+const db = window.supabase.createClient(
+  "https://zwduejenlwnixsfpmqqx.supabase.co",
+  "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv",
+  {
+    auth: {
+      storageKey: "shura-voter-auth",
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false
+    }
+  }
+);
+
+const input = document.getElementById("code");
+const button = document.getElementById("verify");
+const result = document.getElementById("result");
+
+function showMessage(message, isError = false) {
+  result.className = isError ? "error" : "";
+  result.textContent = message;
+}
+
+// إنشاء جلسة ناخب مجهولة أو استخدام الجلسة الموجودة
+async function ensureVoterSession() {
+
+  const { data, error } = await db.auth.getSession();
+
+  if (error) throw error;
+
+  if (data.session?.user?.is_anonymous === true) {
+    return data.session;
+  }
+
+  const signed = await db.auth.signInAnonymously();
+
+  if (signed.error) throw signed.error;
+
+  if (
+    !signed.data.user ||
+    signed.data.user.is_anonymous !== true
+  ) {
+    throw new Error("تعذر إنشاء جلسة ناخب صالحة.");
+  }
+
+  return signed.data.session;
+}
+
+// تنفيذ الاختبار
+button.addEventListener("click", async () => {
+
+  const code = input.value
+    .trim()
+    .toUpperCase()
+    .replace(/\s/g, "");
+
+  if (!/^[A-F0-9]{24}$/.test(code)) {
+
+    showMessage(
+      "الرمز يجب أن يتكون من 24 خانة من الأحرف A-F والأرقام.",
+      true
+    );
+
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "جارٍ التحقق...";
+
+  showMessage("جارٍ إنشاء جلسة الناخب والتحقق من العضوية...");
+
+  try {
+
+    // أولاً: التأكد من جلسة الناخب
+    await ensureVoterSession();
+
+    // ثانياً: التحقق من رمز العضوية
+    const { data, error } = await db.rpc(
+      "redeem_membership_code",
       {
-        auth: {
-          storageKey: "shura-auth-test",
-          persistSession: false,
-          autoRefreshToken: false
-        }
+        p_election_id: ELECTION_ID,
+        p_code: code
       }
     );
 
-    const result = document.getElementById("result");
-    const button = document.getElementById("test");
+    if (error) throw error;
 
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      result.textContent = "جارٍ اختبار الدخول...";
+    if (!data?.length) {
+      throw new Error(
+        "لم يتم العثور على عضوية مطابقة لهذا الرمز."
+      );
+    }
 
-      try {
-        const { data, error } =
-          await db.auth.signInAnonymously();
+    const member = {
+      voter_id: data[0].voter_id,
+      full_name: data[0].full_name,
+      verified: true
+    };
 
-        if (error) throw error;
+    // ثالثاً: حفظ حالة التحقق محلياً
+    const saved = JSON.parse(
+      localStorage.getItem(SAVED_KEY) || "{}"
+    );
 
-        if (!data.user || data.user.is_anonymous !== true) {
-          throw new Error("لم يتم إنشاء مستخدم مجهول صالح.");
-        }
+    saved[ELECTION_ID] = member;
 
-        result.textContent =
-          "نجح الاختبار: تم إنشاء جلسة دخول مجهولة.\n" +
-          "معرّف المستخدم: " + data.user.id +
-          "\nحالة المستخدم المجهول: " +
-          data.user.is_anonymous;
+    localStorage.setItem(
+      SAVED_KEY,
+      JSON.stringify(saved)
+    );
 
-        await db.auth.signOut();
-
-      } catch (error) {
-        result.textContent =
-          "فشل الاختبار:\n" + error.message;
-      } finally {
-        button.disabled = false;
+    // رابعاً: قراءة البنود النشطة فقط
+    const {
+      data: progress,
+      error: progressError
+    } = await db.rpc(
+      "get_voter_progress",
+      {
+        p_election_id: ELECTION_ID
       }
-    });
-  </script>
+    );
+
+    if (progressError) throw progressError;
+
+    // عرض النتيجة
+    result.replaceChildren();
+
+    const heading = document.createElement("h3");
+    heading.textContent = "تم التحقق بنجاح";
+    result.append(heading);
+
+    const name = document.createElement("p");
+    name.textContent = "العضوية: " + member.full_name;
+    result.append(name);
+
+    const sessionInfo = document.createElement("p");
+
+    sessionInfo.textContent =
+      "تم ربط العضوية بجلسة هذا الجهاز وحفظ الجلسة.";
+
+    result.append(sessionInfo);
+
+    const itemsHeading = document.createElement("h4");
+
+    itemsHeading.textContent =
+      "البنود النشطة التي أعادها النظام:";
+
+    result.append(itemsHeading);
+
+    if (!progress?.length) {
+
+      const none = document.createElement("p");
+
+      none.textContent =
+        "لا توجد بنود نشطة حالياً لهذه الانتخابات.";
+
+      result.append(none);
+
+    } else {
+
+      progress.forEach(item => {
+
+        const row = document.createElement("div");
+
+        row.className = "item";
+
+        row.textContent =
+          item.item_title +
+          (
+            item.has_voted
+              ? " — مسجل سابقاً"
+              : " — لم يُسجل صوت"
+          );
+
+        result.append(row);
+
+      });
+
+    }
+
+    const safety = document.createElement("p");
+
+    safety.textContent =
+      "اكتمل اختبار التحقق وعرض البنود فقط. لم يتم استدعاء وظيفة التصويت.";
+
+    result.append(safety);
+
+    // عدم إبقاء الرمز ظاهراً بعد نجاح الاختبار
+    input.value = "";
+
+  } catch (error) {
+
+    showMessage(
+      "تعذر إكمال الاختبار: " +
+      (error.message || "خطأ غير معروف"),
+      true
+    );
+
+  } finally {
+
+    button.disabled = false;
+    button.textContent = "التحقق من الرمز";
+
+  }
+
+});
+</script>
+
 </body>
 </html>
-

@@ -59,6 +59,11 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.error {
+  background: #fff0f0 !important;
+  color: #9b2020;
+}
+
 .item {
   padding: 9px 0;
   border-bottom: 1px solid #ddd;
@@ -91,17 +96,15 @@ button:disabled {
 </button>
 
 <div id="result" aria-live="polite">
-بانتظار إدخال الرمز.
+جارٍ فحص الجلسة المحفوظة...
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
 const ELECTION_ID = "d3c7a193-9e5c-462e-8b95-7aa7c6e7ab49";
-
 const SAVED_KEY = "shura-voter-elections-v1";
 
-// إعداد الاتصال بقاعدة البيانات
 const db = window.supabase.createClient(
   "https://zwduejenlwnixsfpmqqx.supabase.co",
   "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv",
@@ -149,7 +152,145 @@ async function ensureVoterSession() {
   return signed.data.session;
 }
 
-// تنفيذ الاختبار
+// عرض بيانات العضوية والبنود
+function displayProgress(member, progress, restored = false) {
+
+  result.replaceChildren();
+  result.className = "";
+
+  const heading = document.createElement("h3");
+  heading.textContent = restored
+    ? "تمت استعادة الجلسة تلقائياً"
+    : "تم التحقق بنجاح";
+
+  result.append(heading);
+
+  const name = document.createElement("p");
+  name.textContent = "العضوية: " + member.full_name;
+  result.append(name);
+
+  const sessionInfo = document.createElement("p");
+  sessionInfo.textContent = restored
+    ? "تم العثور على جلسة هذا الجهاز والتحقق من صلاحيتها."
+    : "تم ربط العضوية بجلسة هذا الجهاز وحفظ الجلسة.";
+
+  result.append(sessionInfo);
+
+  const itemsHeading = document.createElement("h4");
+  itemsHeading.textContent = "البنود النشطة:";
+  result.append(itemsHeading);
+
+  if (!progress?.length) {
+
+    const none = document.createElement("p");
+    none.textContent =
+      "لا توجد بنود نشطة حالياً لهذه الانتخابات.";
+
+    result.append(none);
+
+  } else {
+
+    progress.forEach(item => {
+
+      const row = document.createElement("div");
+      row.className = "item";
+
+      row.textContent =
+        item.item_title +
+        (
+          item.has_voted
+            ? " — مسجل سابقاً"
+            : " — لم يُسجل صوت"
+        );
+
+      result.append(row);
+    });
+  }
+
+  const safety = document.createElement("p");
+  safety.textContent =
+    "هذا اختبار للتحقق وعرض حالة البنود فقط. لم يتم استدعاء وظيفة التصويت.";
+
+  result.append(safety);
+}
+
+// استعادة الجلسة والعضوية عند فتح الصفحة أو تحديثها
+async function restoreVoterSession() {
+
+  try {
+
+    const { data, error } = await db.auth.getSession();
+
+    if (error) throw error;
+
+    const session = data.session;
+
+    if (
+      !session ||
+      session.user?.is_anonymous !== true
+    ) {
+      showMessage(
+        "لم يتم العثور على جلسة ناخب صالحة على هذا الجهاز. يمكنك إدخال رمز العضوية للتحقق.",
+        true
+      );
+      return;
+    }
+
+    const savedText = localStorage.getItem(SAVED_KEY);
+
+    if (!savedText) {
+      showMessage(
+        "الجلسة موجودة، لكن لم يتم العثور على عضوية محفوظة. أدخل رمز العضوية للتحقق.",
+        true
+      );
+      return;
+    }
+
+    const saved = JSON.parse(savedText);
+    const member = saved?.[ELECTION_ID];
+
+    if (
+      !member ||
+      member.verified !== true ||
+      !member.voter_id ||
+      !member.full_name
+    ) {
+      showMessage(
+        "لم يتم العثور على بيانات عضوية مكتملة. أدخل رمز العضوية للتحقق.",
+        true
+      );
+      return;
+    }
+
+    // لا نعيد التحقق من الرمز ولا نعيد ربط العضوية.
+    // نطلب فقط تقدم الناخب للتأكد من صلاحية الجلسة الحالية.
+    const {
+      data: progress,
+      error: progressError
+    } = await db.rpc(
+      "get_voter_progress",
+      {
+        p_election_id: ELECTION_ID
+      }
+    );
+
+    if (progressError) throw progressError;
+
+    displayProgress(member, progress, true);
+
+  } catch (error) {
+
+    showMessage(
+      "تعذرت استعادة الجلسة تلقائياً: " +
+      (error.message || "خطأ غير معروف") +
+      ". لم يتم حذف البيانات أو تغيير الجلسة. يمكنك إدخال الرمز إذا لزم الأمر.",
+      true
+    );
+
+  }
+}
+
+// التحقق من الرمز عند الضغط على الزر
 button.addEventListener("click", async () => {
 
   const code = input.value
@@ -225,70 +366,9 @@ button.addEventListener("click", async () => {
 
     if (progressError) throw progressError;
 
-    // عرض النتيجة
-    result.replaceChildren();
+    displayProgress(member, progress, false);
 
-    const heading = document.createElement("h3");
-    heading.textContent = "تم التحقق بنجاح";
-    result.append(heading);
-
-    const name = document.createElement("p");
-    name.textContent = "العضوية: " + member.full_name;
-    result.append(name);
-
-    const sessionInfo = document.createElement("p");
-
-    sessionInfo.textContent =
-      "تم ربط العضوية بجلسة هذا الجهاز وحفظ الجلسة.";
-
-    result.append(sessionInfo);
-
-    const itemsHeading = document.createElement("h4");
-
-    itemsHeading.textContent =
-      "البنود النشطة التي أعادها النظام:";
-
-    result.append(itemsHeading);
-
-    if (!progress?.length) {
-
-      const none = document.createElement("p");
-
-      none.textContent =
-        "لا توجد بنود نشطة حالياً لهذه الانتخابات.";
-
-      result.append(none);
-
-    } else {
-
-      progress.forEach(item => {
-
-        const row = document.createElement("div");
-
-        row.className = "item";
-
-        row.textContent =
-          item.item_title +
-          (
-            item.has_voted
-              ? " — مسجل سابقاً"
-              : " — لم يُسجل صوت"
-          );
-
-        result.append(row);
-
-      });
-
-    }
-
-    const safety = document.createElement("p");
-
-    safety.textContent =
-      "اكتمل اختبار التحقق وعرض البنود فقط. لم يتم استدعاء وظيفة التصويت.";
-
-    result.append(safety);
-
-    // عدم إبقاء الرمز ظاهراً بعد نجاح الاختبار
+    // إخفاء الرمز من حقل الإدخال بعد النجاح
     input.value = "";
 
   } catch (error) {
@@ -307,6 +387,10 @@ button.addEventListener("click", async () => {
   }
 
 });
+
+// تشغيل الاستعادة تلقائياً عند فتح الصفحة
+restoreVoterSession();
+
 </script>
 
 </body>

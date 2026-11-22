@@ -1,4 +1,3 @@
-
 const SUPABASE_URL = "https://zwduejenlwnixsfpmqqx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv";
 
@@ -156,7 +155,8 @@ async function loadVoters() {
   }
 
   selectedElection = electionId;
-  $("new-code-result").hidden = true;
+
+  // لا نخفي مربع الرمز هنا؛ فقد يكون قد عُرض للتو بعد إنشاء العضو أو إعادة إصدار الرمز.
 
   const [votersRes, participationRes, resultsRes] = await Promise.all([
     db.rpc("admin_list_eligible_voters", {
@@ -273,12 +273,12 @@ async function loadVoters() {
         return;
       }
 
+      await loadVoters();
+
       showCode(
         data[0].membership_code,
         "رمز جديد للعضو: " + voter.full_name
       );
-
-      await loadVoters();
     });
 
     resetCell.append(reset);
@@ -501,6 +501,8 @@ $("voter-form").addEventListener("submit", async event => {
     return;
   }
 
+  await loadVoters();
+
   showCode(
     data[0].membership_code,
     "رمز العضوية الجديد للعضو: " + data[0].full_name
@@ -508,8 +510,6 @@ $("voter-form").addEventListener("submit", async event => {
 
   event.target.reset();
   $("voter-election").value = electionId;
-
-  await loadVoters();
 });
 
 // تحديث بيانات الأعضاء

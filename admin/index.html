@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#153954">
+  <title>إدارة منصة الشورى</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../">
+      <span class="brand-mark">ش</span>
+      <span>
+        <strong>منصة الشورى</strong>
+        <small>لوحة الإدارة</small>
+      </span>
+    </a>
+    <a class="back" href="../">العودة إلى واجهة الناخبين</a>
+  </header>
+
+  <main>
+    <section id="login-panel" class="panel login-panel">
+      <p class="eyebrow">دخول اللجنة</p>
+      <h1>تسجيل الدخول إلى لوحة الإدارة</h1>
+      <p class="muted">هذه المنطقة مخصصة لأعضاء الإدارة المعتمدين فقط.</p>
+
+      <form id="login-form">
+        <label for="email">البريد الإلكتروني</label>
+        <input id="email" name="email" type="email" autocomplete="username" required>
+
+        <label for="password">كلمة المرور</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit">تسجيل الدخول</button>
+        <p id="login-message" class="message" role="status"></p>
+      </form>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="welcome">
+        <div>
+          <p class="eyebrow">مساحة العمل</p>
+          <h1>إدارة الانتخابات</h1>
+          <p id="admin-email" class="muted"></p>
+        </div>
+        <button id="signout" class="secondary" type="button">تسجيل الخروج</button>
+      </div>
+
+      <section class="panel">
+        <h2>إنشاء انتخابات جديدة</h2>
+        <form id="election-form" class="election-form">
+          <label for="title">عنوان الانتخابات</label>
+          <input id="title" name="title" maxlength="180" required>
+
+          <label for="description">وصف مختصر (اختياري)</label>
+          <textarea id="description" name="description" rows="3"></textarea>
+
+          <button type="submit">حفظ كمسودة</button>
+          <p id="election-message" class="message" role="status"></p>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>الانتخابات المسجلة</h2>
+        <div id="elections-list" class="elections-list">جارٍ التحميل...</div>
+      </section>
+    </section>
+  </main>
+
+  <footer>منصة الشورى للتصويت الإلكتروني · لوحة إدارية محمية</footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

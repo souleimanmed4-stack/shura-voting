@@ -1,1 +1,55 @@
-document.getElementById("year")?.textContent=new Date().getFullYear();(async()=>{const $=id=>document.getElementById(id),URL="https://zwduejenlwnixsfpmqqx.supabase.co",KEY="sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv";try{let db=window.supabase.createClient(URL,KEY),{data:es,error}=await db.from("elections").select("id,title,description,status").eq("is_published",true).order("created_at",{ascending:false});if(error)throw error;if(!es?.length){$("election-status-title").textContent="لا توجد انتخابات منشورة حالياً";$("election-status-description").textContent="ستظهر هنا الانتخابات بعد نشرها.";return}$("election-status-title").textContent="عدد الانتخابات المنشورة: "+es.length;$("election-status-description").textContent="البنود وخيارات التصويت المعتمدة";$("election-status-pill").textContent="محدّثة مباشرة";for(let e of es){let card=document.createElement("article");card.className="election-card";let h=document.createElement("h3");h.textContent=e.title;card.append(h);if(e.description){let p=document.createElement("p");p.textContent=e.description;card.append(p)}let {data:items,error:ie}=await db.from("election_items").select("id,title,item_type,body").eq("election_id",e.id).eq("is_active",true).order("sort_order");let section=document.createElement("section");section.className="public-items";let heading=document.createElement("h4");heading.textContent="بنود التصويت";section.append(heading);if(ie){section.append(ie.message)}else for(let i of items||[]){let block=document.createElement("div");block.className="public-voting-item";let ih=document.createElement("h5");ih.textContent=i.title;block.append(ih);if(i.body){let p=document.createElement("p");p.textContent=i.body;block.append(p)}let {data:opts}=await db.from("election_item_options").select("label").eq("item_id",i.id).eq("is_active",true).order("sort_order");let ul=document.createElement("ul");for(let o of opts||[]){let li=document.createElement("li");li.textContent=o.label;ul.append(li)}block.append(ul);section.append(block)}card.append(section);$("election-list").append(card)}}catch(e){$("election-status-title").textContent="تعذر تحميل بيانات الانتخابات";$("election-status-description").textContent=e.message}})();
+document.getElementById("year").textContent = new Date().getFullYear();
+
+(async function loadPublishedElections() {
+  const title = document.getElementById("election-status-title");
+  const description = document.getElementById("election-status-description");
+  const pill = document.getElementById("election-status-pill");
+  const list = document.getElementById("election-list");
+  const SUPABASE_URL = "https://zwduejenlwnixsfpmqqx.supabase.co";
+  // Publishable key: intended for browser use; never place service-role secrets here.
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv";
+
+  try {
+    if (!window.supabase?.createClient) throw new Error("تعذر تحميل مكتبة الاتصال.");
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const { data: elections, error } = await client.from("elections")
+      .select("id,title,description,status,is_published,starts_at,ends_at,show_results,created_at")
+      .eq("is_published", true).order("created_at", { ascending: false });
+    if (error) throw error;
+    if (!elections?.length) {
+      title.textContent = "لا توجد انتخابات منشورة حالياً";
+      description.textContent = "عند إعلان لجنة الإشراف عن انتخابات جديدة، ستظهر تفاصيلها هنا.";
+      pill.textContent = "بانتظار النشر";
+      return;
+    }
+    title.textContent = "عدد الانتخابات المنشورة: " + elections.length;
+    description.textContent = "هذه البيانات معروضة مباشرة من قاعدة بيانات المنصة.";
+    pill.textContent = "محدّثة مباشرة";
+
+    for (const election of elections) {
+      const card = document.createElement("article"); card.className = "election-card";
+      const heading = document.createElement("h3"); heading.textContent = election.title || "انتخابات بدون عنوان"; card.appendChild(heading);
+      if (election.description) { const p = document.createElement("p"); p.textContent = election.description; card.appendChild(p); }
+      const state = document.createElement("p"); state.className = "election-meta"; state.textContent = "الحالة: " + (election.status || "منشورة"); card.appendChild(state);
+      const h4 = document.createElement("h4"); h4.textContent = "المترشحون"; card.appendChild(h4);
+      const ul = document.createElement("ul"); ul.className = "candidate-list";
+      const { data: candidates, error: candidateError } = await client.from("candidates")
+        .select("id,name,description,sort_order,is_active").eq("election_id", election.id)
+        .eq("is_active", true).order("sort_order", { ascending: true });
+      if (candidateError) { const li = document.createElement("li"); li.textContent = "تعذر تحميل قائمة المترشحين حالياً."; ul.appendChild(li); }
+      else if (!candidates?.length) { const li = document.createElement("li"); li.textContent = "لم تتم إضافة مترشحين بعد."; ul.appendChild(li); }
+      else for (const candidate of candidates) {
+        const li = document.createElement("li"); const strong = document.createElement("strong");
+        strong.textContent = candidate.name; li.appendChild(strong);
+        if (candidate.description) { const span = document.createElement("span"); span.textContent = " — " + candidate.description; li.appendChild(span); }
+        ul.appendChild(li);
+      }
+      card.appendChild(ul); list.appendChild(card);
+    }
+  } catch (error) {
+    console.error("Supabase connection error:", error);
+    title.textContent = "تعذر تحميل بيانات الانتخابات";
+    description.textContent = "تحقق من إعدادات الاتصال وصلاحيات القراءة في قاعدة البيانات.";
+    pill.textContent = "تعذر الاتصال";
+  }
+})();

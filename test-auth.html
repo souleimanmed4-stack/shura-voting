@@ -1,1 +1,81 @@
 
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>اختبار دخول الناخب</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      line-height: 1.8;
+      text-align: center;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f2f2f2;
+      border-radius: 8px;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+  <h2>اختبار نظام دخول الناخبين</h2>
+  <p>هذه صفحة اختبار مؤقتة، ولا تنفذ أي عملية تصويت.</p>
+  <button id="test">اختبار الدخول المجهول</button>
+  <div id="result">بانتظار الاختبار...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const db = window.supabase.createClient(
+      "https://zwduejenlwnixsfpmqqx.supabase.co",
+      "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv",
+      {
+        auth: {
+          storageKey: "shura-auth-test",
+          persistSession: false,
+          autoRefreshToken: false
+        }
+      }
+    );
+
+    const result = document.getElementById("result");
+    const button = document.getElementById("test");
+
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      result.textContent = "جارٍ اختبار الدخول...";
+
+      try {
+        const { data, error } =
+          await db.auth.signInAnonymously();
+
+        if (error) throw error;
+
+        if (!data.user || data.user.is_anonymous !== true) {
+          throw new Error("لم يتم إنشاء مستخدم مجهول صالح.");
+        }
+
+        result.textContent =
+          "نجح الاختبار: تم إنشاء جلسة دخول مجهولة.\n" +
+          "معرّف المستخدم: " + data.user.id +
+          "\nحالة المستخدم المجهول: " +
+          data.user.is_anonymous;
+
+        await db.auth.signOut();
+
+      } catch (error) {
+        result.textContent =
+          "فشل الاختبار:\n" + error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+

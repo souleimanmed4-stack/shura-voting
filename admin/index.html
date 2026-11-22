@@ -1,1 +1,42 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>إدارة منصة الشورى</title><link rel="stylesheet" href="admin.css"></head><body><header class="topbar"><a href="../">منصة الشورى · لوحة الإدارة</a><a href="../">واجهة الناخبين</a></header><main><section id="login-panel" class="panel"><h1>دخول اللجنة</h1><form id="login-form"><label>البريد الإلكتروني</label><input id="email" type="email" required><label>كلمة المرور</label><input id="password" type="password" required><button>تسجيل الدخول</button><p id="login-message"></p></form></section><section id="dashboard" hidden><div class="welcome"><h1>إدارة الانتخابات</h1><span id="admin-email"></span><button id="signout" type="button">تسجيل الخروج</button></div><section class="panel"><h2>إنشاء انتخابات جديدة</h2><form id="election-form"><label>عنوان الانتخابات</label><input id="title" maxlength="180" required><label>وصف مختصر</label><textarea id="description"></textarea><button>حفظ كمسودة</button><p id="election-message"></p></form></section><section class="panel"><h2>إضافة بند تصويت</h2><form id="item-form"><label>الانتخابات</label><select id="item-election" required><option value="">اختر الانتخابات</option></select><label>نوع البند</label><select id="item-type"><option value="person">انتخاب شخص</option><option value="article">مادة</option><option value="law">قانون</option><option value="proposal">مقترح</option></select><label>عنوان البند</label><input id="item-title" required maxlength="240"><label>نص البند أو تفاصيله</label><textarea id="item-body"></textarea><label>خيارات التصويت (كل خيار في سطر)</label><textarea id="item-options" placeholder="أسماء المترشحين كل اسم في سطر، أو اتركه فارغاً للموافقة/الرفض/الامتناع."></textarea><button>حفظ البند وخياراته</button><p id="item-message"></p></form></section><section class="panel"><h2>الانتخابات المسجلة وبنودها</h2><div id="elections-list"></div></section></section></main><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="admin.js"></script></body></html>
+
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إدارة منصة الشورى</title><link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header class="topbar"><a href="../">منصة الشورى · لوحة الإدارة</a><a href="../">واجهة الناخبين</a></header>
+<main>
+<section id="login-panel" class="panel"><h1>دخول اللجنة</h1>
+<form id="login-form"><label>البريد الإلكتروني</label><input id="email" type="email" required>
+<label>كلمة المرور</label><input id="password" type="password" required>
+<button>تسجيل الدخول</button><p id="login-message"></p></form></section>
+<section id="dashboard" hidden>
+<div class="welcome"><h1>إدارة الانتخابات</h1><span id="admin-email"></span><button id="signout" type="button">تسجيل الخروج</button></div>
+<section class="panel"><h2>إنشاء انتخابات جديدة</h2>
+<form id="election-form"><label>عنوان الانتخابات</label><input id="title" maxlength="180" required>
+<label>وصف مختصر</label><textarea id="description"></textarea><button>حفظ كمسودة</button><p id="election-message"></p></form></section>
+<section class="panel"><h2>إضافة بند تصويت</h2>
+<form id="item-form"><label>الانتخابات</label><select id="item-election" required><option value="">اختر الانتخابات</option></select>
+<label>نوع البند</label><select id="item-type"><option value="person">انتخاب شخص</option><option value="article">مادة</option><option value="law">قانون</option><option value="proposal">مقترح</option></select>
+<label>عنوان البند</label><input id="item-title" required maxlength="240">
+<label>نص البند أو تفاصيله</label><textarea id="item-body"></textarea>
+<label>خيارات التصويت (كل خيار في سطر)</label><textarea id="item-options" placeholder="أسماء المترشحين كل اسم في سطر، أو اتركه فارغاً للموافقة/الرفض/الامتناع."></textarea>
+<button>حفظ البند وخياراته</button><p id="item-message"></p></form></section>
+<section class="panel"><h2>إدارة الأعضاء ورموز العضوية</h2>
+<form id="voter-form"><label>الانتخابات</label><select id="voter-election" required><option value="">اختر الانتخابات</option></select>
+<label>اسم العضو</label><input id="voter-name" required>
+<label>رقم الهاتف (مع مفتاح الدولة)</label><input id="voter-phone" required placeholder="+222...">
+<button>إضافة العضو وإنشاء رمز</button></form>
+<div id="new-code-result" class="code-result" hidden></div>
+<div class="toolbar"><button type="button" id="load-voters">تحديث بيانات الأعضاء</button></div>
+<p id="voter-message"></p><div id="voter-summary"></div>
+<h3>سجل الأعضاء</h3><div class="table-wrap"><table id="voter-table"></table></div>
+<h3>المشاركة حسب العضو والبند</h3><div class="table-wrap"><table id="participation-table"></table></div>
+<h3>النتائج الإجمالية — دون ربط الاختيار باسم صاحبه</h3><div class="table-wrap"><table id="results-table"></table></div>
+</section>
+<section class="panel"><h2>الانتخابات المسجلة وبنودها</h2><div id="elections-list"></div></section>
+</section></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="admin.js"></script>
+</body></html>

@@ -1,38 +1,52 @@
+
 // إعداد الاتصال بقاعدة بيانات منصة الشورى
 const SUPABASE_URL = "https://zwduejenlwnixsfpmqqx.supabase.co";
-
 const SUPABASE_KEY = "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv";
-
-const supabase = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
 
 // عناصر الصفحة
 const loginPanel = document.getElementById("login-panel");
 const dashboard = document.getElementById("dashboard");
-
 const loginForm = document.getElementById("login-form");
 const loginMessage = document.getElementById("login-message");
-
 const electionForm = document.getElementById("election-form");
 const electionMessage = document.getElementById("election-message");
-
 const electionsList = document.getElementById("elections-list");
 const adminEmail = document.getElementById("admin-email");
-
 const signoutButton = document.getElementById("signout");
 
-// عرض الرسائل
 function showMessage(element, message, isError = false) {
+  if (!element) return;
   element.textContent = message;
   element.className = isError ? "message error" : "message success";
 }
 
+function showLogin() {
+  loginPanel.hidden = false;
+  dashboard.hidden = true;
+}
+
+// تهيئة الاتصال
+let supabaseClient = null;
+
+try {
+  if (!window.supabase || !window.supabase.createClient) {
+    throw new Error("لم يتم تحميل مكتبة Supabase. تحقق من اتصال الإنترنت.");
+  }
+
+  supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
+} catch (error) {
+  console.error(error);
+}
+
 // التحقق من صلاحية المشرف
 async function checkAdmin() {
+  if (!supabaseClient) return;
+
   const { data: sessionData, error: sessionError } =
-    await supabase.auth.getSession();
+    await supabaseClient.auth.getSession();
 
   if (sessionError || !sessionData.session) {
     showLogin();
@@ -41,7 +55,7 @@ async function checkAdmin() {
 
   const user = sessionData.session.user;
 
-  const { data: admin, error } = await supabase
+  const { data: admin, error } = await supabaseClient
     .from("admin_access")
     .select("user_id, role")
     .eq("user_id", user.id)
@@ -49,7 +63,7 @@ async function checkAdmin() {
 
   if (error || !admin ||
       !["super_admin", "committee"].includes(admin.role)) {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     showLogin();
     showMessage(
       loginMessage,
@@ -66,49 +80,52 @@ async function checkAdmin() {
   await loadElections();
 }
 
-// إظهار صفحة الدخول
-function showLogin() {
-  loginPanel.hidden = false;
-  dashboard.hidden = true;
-}
-
 // تسجيل الدخول
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+
+  if (!supabaseClient) {
+    showMessage(
+      loginMessage,
+      "تعذر الاتصال بمكتبة قاعدة البيانات. أعد تحميل الصفحة أو جرّب شبكة أخرى.",
+      true
+    );
+    return;
+  }
 
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
 
   showMessage(loginMessage, "جارٍ التحقق من البيانات...");
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
+  try {
+    const { error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
 
-  if (error) {
-    showMessage(
-      loginMessage,
-      "تعذر تسجيل الدخول. تحقق من البريد الإلكتروني وكلمة المرور.",
-      true
-    );
-    return;
+    if (error) {
+      showMessage(loginMessage, "فشل تسجيل الدخول: " + error.message, true);
+      return;
+    }
+
+    await checkAdmin();
+  } catch (error) {
+    showMessage(loginMessage, "حدث خطأ أثناء الاتصال: " + error.message, true);
   }
-
-  await checkAdmin();
 });
 
 // تحميل الانتخابات
 async function loadElections() {
   electionsList.textContent = "جارٍ تحميل الانتخابات...";
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("elections")
     .select("id, title, description, status, is_published, starts_at, ends_at, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
-    electionsList.textContent = "تعذر تحميل الانتخابات.";
+    electionsList.textContent = "تعذر تحميل الانتخابات: " + error.message;
     return;
   }
 
@@ -130,16 +147,14 @@ async function loadElections() {
     status.textContent = "الحالة: " + election.status;
 
     const publication = document.createElement("p");
-    publication.textContent = election.is_published
-      ? "منشورة"
-      : "غير منشورة";
+    publication.textContent = election.is_published ? "منشورة" : "غير منشورة";
 
     item.append(title, status, publication);
     electionsList.appendChild(item);
   });
 }
 
-// إنشاء انتخابات جديدة كمسودة
+// إنشاء انتخابات جديدة
 electionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -153,7 +168,7 @@ electionForm.addEventListener("submit", async (event) => {
 
   showMessage(electionMessage, "جارٍ حفظ المسودة...");
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("elections")
     .insert({
       title,
@@ -161,16 +176,11 @@ electionForm.addEventListener("submit", async (event) => {
     });
 
   if (error) {
-    showMessage(
-      electionMessage,
-      "تعذر حفظ المسودة: " + error.message,
-      true
-    );
+    showMessage(electionMessage, "تعذر حفظ المسودة: " + error.message, true);
     return;
   }
 
   electionForm.reset();
-
   showMessage(electionMessage, "تم حفظ الانتخابات كمسودة بنجاح.");
 
   await loadElections();
@@ -178,16 +188,26 @@ electionForm.addEventListener("submit", async (event) => {
 
 // تسجيل الخروج
 signoutButton.addEventListener("click", async () => {
-  await supabase.auth.signOut();
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+  }
   showLogin();
 });
 
-// متابعة حالة الجلسة
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === "SIGNED_OUT" || !session) {
-    showLogin();
-  }
-});
+// متابعة الجلسة
+if (supabaseClient) {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT" || !session) {
+      showLogin();
+    }
+  });
 
-// التحقق عند فتح الصفحة
-checkAdmin();
+  checkAdmin();
+} else {
+  showLogin();
+  showMessage(
+    loginMessage,
+    "تعذر تحميل مكتبة الاتصال. تحقق من الإنترنت ثم أعد تحميل الصفحة.",
+    true
+  );
+}

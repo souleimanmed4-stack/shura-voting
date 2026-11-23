@@ -1,34 +1,86 @@
+// ============================================
+// إعداد الاتصال بقاعدة بيانات Supabase
+// ============================================
+
 const SUPABASE_URL = "https://zwduejenlwnixsfpmqqx.supabase.co";
+
 const SUPABASE_KEY = "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv";
 
+// اسم Edge Function المنشورة مسبقاً
+const EDITOR_FUNCTION = "hyper-action";
+
 const $ = id => document.getElementById(id);
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const msg = (id, text) => {
-  if ($(id)) $(id).textContent = text;
-};
 
-let selectedElection = "";
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
-function node(tag, text, cls) {
-  const n = document.createElement(tag);
-  if (text !== undefined) n.textContent = text;
-  if (cls) n.className = cls;
-  return n;
+// الصلاحيات المتاحة
+const PERMISSIONS = [
+  ["elections_create", "إنشاء الانتخابات"],
+  ["elections_edit", "تعديل الانتخابات والبنود"],
+  ["elections_publish", "نشر الانتخابات وإيقافها"],
+  ["voters_manage", "إدارة الأعضاء ورموز العضوية"],
+  ["results_view", "عرض النتائج الإجمالية"],
+  ["participation_view", "متابعة المشاركة"],
+  ["reports_view", "إعداد التقارير"]
+];
+
+let currentAccess = null;
+let currentPermissions = [];
+
+// ============================================
+// أدوات مساعدة
+// ============================================
+
+function msg(id, text) {
+  if ($(id)) {
+    $(id).textContent = text;
+  }
 }
+
+function node(tag, text, className) {
+  const element = document.createElement(tag);
+
+  if (text !== undefined) {
+    element.textContent = text;
+  }
+
+  if (className) {
+    element.className = className;
+  }
+
+  return element;
+}
+
+function hasPermission(permission) {
+  return (
+    currentAccess?.role === "super_admin" ||
+    currentPermissions.includes(permission)
+  );
+}
+
+// ============================================
+// عرض رمز العضوية
+// ============================================
 
 function showCode(code, title) {
   const box = $("new-code-result");
+
   box.replaceChildren();
 
-  box.append(node(
-    "strong",
-    title || "رمز العضوية — أرسله للعضو واحفظ نسخة منه"
-  ));
+  box.append(
+    node(
+      "strong",
+      title || "رمز العضوية — احفظه وسلّمه للعضو"
+    )
+  );
 
-  const value = node("code", code);
-  box.append(value);
+  box.append(node("code", code));
 
   const copy = node("button", "نسخ الرمز");
+
   copy.type = "button";
 
   copy.addEventListener("click", async () => {
@@ -44,46 +96,157 @@ function showCode(code, title) {
   box.hidden = false;
 }
 
-async function check() {
-  const { data: sessionData, error } = await db.auth.getSession();
+// ============================================
+// تحديد واجهة المستخدم حسب الصلاحيات
+// ============================================
 
-  if (error) throw error;
+function applyAccessUI() {
+  const isSuperAdmin =
+    currentAccess?.role === "super_admin";
+
+  $("admin-role").textContent =
+    isSuperAdmin ? "المدير العام" : "محرر";
+
+  // إدارة المحررين للمدير العام فقط
+  $("editor-management").hidden = !isSuperAdmin;
+
+  // إنشاء الانتخابات
+  $("election-create-panel").hidden =
+    !hasPermission("elections_create");
+
+  // تعديل البنود
+  $("item-create-panel").hidden =
+    !hasPermission("elections_edit");
+
+  // قائمة الانتخابات
+  $("elections-list-panel").hidden = false;
+
+  const canAccessVoters =
+    hasPermission("voters_manage") ||
+    hasPermission("participation_view") ||
+    hasPermission("results_view");
+
+  $("voter-management-panel").hidden =
+    !canAccessVoters;
+
+  $("voter-add-area").hidden =
+    !hasPermission("voters_manage");
+
+  $("voter-refresh-area").hidden =
+    !canAccessVoters;
+
+  $("voter-list-area").hidden =
+    !hasPermission("voters_manage");
+
+  $("participation-area").hidden =
+    !hasPermission("participation_view");
+
+  $("results-area").hidden =
+    !hasPermission("results_view");
+}
+
+// ============================================
+// التحقق من الحساب وصلاحياته
+// ============================================
+
+async function check() {
+  const {
+    data: sessionData,
+    error: sessionError
+  } = await db.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
 
   const session = sessionData.session;
 
   if (!session) {
+    currentAccess = null;
+    currentPermissions = [];
+
     $("login-panel").hidden = false;
     $("dashboard").hidden = true;
+
     return;
   }
 
-  const { data: admin, error: adminError } = await db
-    .from("admin_access")
-    .select("user_id,role")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
+  // التحقق من صلاحيات الحساب عبر RPC
+  const {
+    data,
+    error
+  } = await db.rpc("admin_get_my_access");
 
-  if (adminError) throw adminError;
+  if (error) {
+    throw error;
+  }
 
-  if (!admin || !["super_admin", "committee"].includes(admin.role)) {
+  const access = Array.isArray(data)
+    ? data[0]
+    : data;
+
+  if (
+    !access ||
+    access.is_active !== true ||
+    !["super_admin", "editor", "committee"].includes(access.role)
+  ) {
     await db.auth.signOut();
 
+    currentAccess = null;
+    currentPermissions = [];
+
     $("login-panel").hidden = false;
     $("dashboard").hidden = true;
 
-    msg("login-message", "هذا الحساب غير مخول بدخول لوحة الإدارة.");
+    msg(
+      "login-message",
+      "هذا الحساب غير نشط أو غير مخول بدخول لوحة الإدارة."
+    );
+
     return;
   }
+
+  currentAccess = access;
+
+  currentPermissions =
+    Array.isArray(access.permissions)
+      ? access.permissions
+      : [];
 
   $("login-panel").hidden = true;
   $("dashboard").hidden = false;
-  $("admin-email").textContent = session.user.email || "حساب الإدارة";
 
-  await load();
+  $("admin-email").textContent =
+    session.user.email || "حساب الإدارة";
+
+  applyAccessUI();
+
+  await loadElections();
+
+  if (
+    hasPermission("voters_manage") ||
+    hasPermission("participation_view") ||
+    hasPermission("results_view")
+  ) {
+    if ($("voter-election").value) {
+      await loadVoterData();
+    }
+  }
+
+  if (access.role === "super_admin") {
+    await loadEditors();
+  }
 }
 
-async function load() {
-  const { data, error } = await db
+// ============================================
+// تحميل الانتخابات وبنودها
+// ============================================
+
+async function loadElections() {
+  const {
+    data,
+    error
+  } = await db
     .from("elections")
     .select("id,title,status,is_published,created_at")
     .order("created_at", { ascending: false });
@@ -93,27 +256,50 @@ async function load() {
     return;
   }
 
-  const select = $("item-election");
+  const itemSelect = $("item-election");
   const voterSelect = $("voter-election");
 
-  select.replaceChildren(new Option("اختر الانتخابات", ""));
-  voterSelect.replaceChildren(new Option("اختر الانتخابات", ""));
+  const previousVoterValue = voterSelect.value;
+
+  itemSelect.replaceChildren(
+    new Option("اختر الانتخابات", "")
+  );
+
+  voterSelect.replaceChildren(
+    new Option("اختر الانتخابات", "")
+  );
 
   $("elections-list").replaceChildren();
 
   for (const election of data || []) {
-    select.add(new Option(election.title, election.id));
-    voterSelect.add(new Option(election.title, election.id));
+    itemSelect.add(
+      new Option(election.title, election.id)
+    );
+
+    voterSelect.add(
+      new Option(election.title, election.id)
+    );
 
     const card = node("article", "", "entry");
 
-    card.append(node(
-      "h3",
-      election.title + " · " + election.status +
-      (election.is_published ? " · منشورة" : " · غير منشورة")
-    ));
+    card.append(
+      node(
+        "h3",
+        election.title +
+        " · " +
+        election.status +
+        (
+          election.is_published
+            ? " · منشورة"
+            : " · غير منشورة"
+        )
+      )
+    );
 
-    const { data: items, error: itemError } = await db
+    const {
+      data: items,
+      error: itemError
+    } = await db
       .from("election_items")
       .select("id,title,item_type,is_active")
       .eq("election_id", election.id)
@@ -123,30 +309,53 @@ async function load() {
       card.append(node("p", itemError.message));
     } else {
       for (const item of items || []) {
-        card.append(node(
-          "p",
-          (item.is_active ? "● " : "○ ") +
-          item.title + " (" + item.item_type + ")"
-        ));
+        card.append(
+          node(
+            "p",
+            (item.is_active ? "● " : "○ ") +
+            item.title +
+            " (" + item.item_type + ")"
+          )
+        );
 
-        const { data: opts } = await db
+        const { data: options } = await db
           .from("election_item_options")
           .select("label")
           .eq("item_id", item.id)
           .order("sort_order");
 
-        card.append(node(
-          "small",
-          (opts || []).map(x => x.label).join(" · ")
-        ));
+        card.append(
+          node(
+            "small",
+            (options || [])
+              .map(option => option.label)
+              .join(" · ")
+          )
+        );
       }
     }
 
     $("elections-list").append(card);
   }
+
+  // المحافظة على الانتخابات المختارة
+  if (
+    previousVoterValue &&
+    [...voterSelect.options].some(
+      option => option.value === previousVoterValue
+    )
+  ) {
+    voterSelect.value = previousVoterValue;
+  } else if (data?.length === 1) {
+    voterSelect.value = data[0].id;
+  }
 }
 
-async function loadVoters() {
+// ============================================
+// تحميل بيانات الأعضاء والمشاركة والنتائج
+// ============================================
+
+async function loadVoterData() {
   const electionId = $("voter-election").value;
 
   if (!electionId) {
@@ -154,382 +363,906 @@ async function loadVoters() {
     return;
   }
 
-  selectedElection = electionId;
+  const requests = {};
 
-  // لا نخفي مربع الرمز هنا؛ فقد يكون قد عُرض للتو بعد إنشاء العضو أو إعادة إصدار الرمز.
+  if (hasPermission("voters_manage")) {
+    requests.voters = db.rpc(
+      "admin_list_eligible_voters",
+      {
+        p_election_id: electionId
+      }
+    );
+  }
 
-  const [votersRes, participationRes, resultsRes] = await Promise.all([
-    db.rpc("admin_list_eligible_voters", {
-      p_election_id: electionId
-    }),
+  if (hasPermission("participation_view")) {
+    requests.participation = db.rpc(
+      "admin_voter_participation",
+      {
+        p_election_id: electionId
+      }
+    );
+  }
 
-    db.rpc("admin_voter_participation", {
-      p_election_id: electionId
-    }),
+  if (hasPermission("results_view")) {
+    requests.results = db.rpc(
+      "admin_get_election_results",
+      {
+        p_election_id: electionId
+      }
+    );
+  }
 
-    db.rpc("admin_get_election_results", {
-      p_election_id: electionId
-    })
-  ]);
+  const keys = Object.keys(requests);
 
-  for (const r of [votersRes, participationRes, resultsRes]) {
-    if (r.error) {
-      msg("voter-message", r.error.message);
+  const responses = await Promise.all(
+    keys.map(key => requests[key])
+  );
+
+  const result = {};
+
+  for (let i = 0; i < keys.length; i++) {
+    if (responses[i].error) {
+      msg(
+        "voter-message",
+        responses[i].error.message
+      );
       return;
+    }
+
+    result[keys[i]] = responses[i].data || [];
+  }
+
+  // ==========================================
+  // جدول الأعضاء
+  // ==========================================
+
+  if (hasPermission("voters_manage")) {
+    const voters = result.voters || [];
+
+    const logged = voters.filter(
+      voter => voter.has_logged_in
+    ).length;
+
+    $("voter-summary").textContent =
+      `عدد الأعضاء: ${voters.length} · ` +
+      `دخلوا المنصة: ${logged} ` +
+      `(${voters.length
+        ? Math.round(logged * 100 / voters.length)
+        : 0}%)`;
+
+    const table = $("voter-table");
+
+    table.replaceChildren();
+
+    const head = node("tr");
+
+    [
+      "اسم العضو",
+      "الهاتف",
+      "آخر 4 من الرمز",
+      "الدخول",
+      "حالة العضوية",
+      "الإجراءات"
+    ].forEach(title => {
+      head.append(node("th", title));
+    });
+
+    table.append(head);
+
+    for (const voter of voters) {
+      const tr = node("tr");
+
+      [
+        voter.full_name,
+        voter.phone_e164,
+        voter.membership_code_hint || "—",
+        voter.has_logged_in ? "دخل" : "لم يدخل",
+        voter.is_enabled ? "مفعلة" : "معطلة"
+      ].forEach(value => {
+        tr.append(
+          node("td", String(value ?? "—"))
+        );
+      });
+
+      const actions = node("td");
+
+      // تفعيل وتعطيل العضو
+      const toggle = node(
+        "button",
+        voter.is_enabled ? "تعطيل" : "تفعيل"
+      );
+
+      toggle.type = "button";
+
+      toggle.addEventListener("click", async () => {
+        toggle.disabled = true;
+
+        const { error } = await db.rpc(
+          "admin_set_voter_enabled",
+          {
+            p_voter_id: voter.voter_id,
+            p_enabled: !voter.is_enabled
+          }
+        );
+
+        toggle.disabled = false;
+
+        if (error) {
+          msg("voter-message", error.message);
+        } else {
+          await loadVoterData();
+        }
+      });
+
+      actions.append(toggle);
+
+      // إعادة إصدار رمز العضوية
+      const reset = node(
+        "button",
+        "إعادة إصدار رمز"
+      );
+
+      reset.type = "button";
+
+      reset.addEventListener("click", async () => {
+        if (!confirm(
+          "سيصبح الرمز القديم غير صالح، وسيحتاج العضو إلى الرمز الجديد. متابعة؟"
+        )) {
+          return;
+        }
+
+        const {
+          data,
+          error
+        } = await db.rpc(
+          "admin_reset_voter_access",
+          {
+            p_voter_id: voter.voter_id
+          }
+        );
+
+        if (error) {
+          msg("voter-message", error.message);
+          return;
+        }
+
+        if (
+          !data?.length ||
+          !data[0].membership_code
+        ) {
+          msg(
+            "voter-message",
+            "لم يتم استلام الرمز الجديد."
+          );
+          return;
+        }
+
+        showCode(
+          data[0].membership_code,
+          "رمز جديد للعضو: " + voter.full_name
+        );
+
+        await loadVoterData();
+      });
+
+      actions.append(reset);
+
+      tr.append(actions);
+      table.append(tr);
     }
   }
 
-  const voters = votersRes.data || [];
-  const participation = participationRes.data || [];
-  const results = resultsRes.data || [];
+  // ==========================================
+  // جدول المشاركة
+  // ==========================================
 
-  const totalMembers = voters.length;
-  const logged = voters.filter(v => v.has_logged_in).length;
+  if (hasPermission("participation_view")) {
+    const table = $("participation-table");
 
-  $("voter-summary").replaceChildren(
-    node(
-      "p",
-      `عدد الأعضاء: ${totalMembers} · من دخلوا المنصة: ${logged} (${totalMembers ? Math.round(logged * 100 / totalMembers) : 0}%)`
-    )
-  );
+    table.replaceChildren();
 
-  // جدول الأعضاء
-  const table = $("voter-table");
-  table.replaceChildren();
-
-  const head = node("tr");
-
-  [
-    "اسم العضو",
-    "الهاتف",
-    "آخر 4 من الرمز",
-    "الدخول",
-    "حالة العضوية"
-  ].forEach(t => head.append(node("th", t)));
-
-  table.append(head);
-
-  for (const voter of voters) {
-    const tr = node("tr");
+    const head = node("tr");
 
     [
-      voter.full_name,
-      voter.phone_e164,
-      voter.membership_code_hint || "—",
-      voter.has_logged_in ? "دخل" : "لم يدخل",
-      voter.is_enabled ? "مفعلة" : "معطلة"
-    ].forEach(t => {
-      tr.append(node("td", String(t)));
+      "اسم العضو",
+      "البند",
+      "شارك؟",
+      "وقت المشاركة"
+    ].forEach(title => {
+      head.append(node("th", title));
     });
 
-    // تفعيل وتعطيل العضو
-    const action = node("td");
+    table.append(head);
 
-    const btn = node(
-      "button",
-      voter.is_enabled ? "تعطيل" : "تفعيل"
-    );
+    for (const row of result.participation || []) {
+      const tr = node("tr");
 
-    btn.type = "button";
-
-    btn.addEventListener("click", async () => {
-      const { error } = await db.rpc("admin_set_voter_enabled", {
-        p_voter_id: voter.voter_id,
-        p_enabled: !voter.is_enabled
+      [
+        row.full_name,
+        row.item_title,
+        row.has_voted ? "نعم" : "لا",
+        row.cast_at
+          ? new Date(row.cast_at).toLocaleString("ar")
+          : "—"
+      ].forEach(value => {
+        tr.append(
+          node("td", String(value ?? "—"))
+        );
       });
 
-      if (error) {
-        alert(error.message);
-      } else {
-        await loadVoters();
-      }
-    });
-
-    action.append(btn);
-
-    // إعادة إصدار رمز العضوية
-    const resetCell = node("td");
-    const reset = node("button", "إعادة إصدار رمز");
-
-    reset.type = "button";
-
-    reset.addEventListener("click", async () => {
-      if (!confirm(
-        "سيصبح الرمز القديم غير صالح، وسيحتاج العضو إلى الرمز الجديد. متابعة؟"
-      )) return;
-
-      const { data, error } = await db.rpc(
-        "admin_reset_voter_access",
-        { p_voter_id: voter.voter_id }
-      );
-
-      if (error) {
-        alert(error.message);
-        return;
-      }
-
-      if (!data || !data.length || !data[0].membership_code) {
-        alert("لم يتم استلام الرمز الجديد.");
-        return;
-      }
-
-      await loadVoters();
-
-      showCode(
-        data[0].membership_code,
-        "رمز جديد للعضو: " + voter.full_name
-      );
-    });
-
-    resetCell.append(reset);
-    tr.append(action, resetCell);
-    table.append(tr);
+      table.append(tr);
+    }
   }
 
-  // جدول المشاركة
-  const pTable = $("participation-table");
-  pTable.replaceChildren();
+  // ==========================================
+  // النتائج الإجمالية
+  // ==========================================
 
-  const pHead = node("tr");
+  if (hasPermission("results_view")) {
+    const table = $("results-table");
 
-  [
-    "اسم العضو",
-    "البند",
-    "شارك؟",
-    "وقت المشاركة"
-  ].forEach(t => pHead.append(node("th", t)));
+    table.replaceChildren();
 
-  pTable.append(pHead);
-
-  for (const row of participation) {
-    const tr = node("tr");
+    const head = node("tr");
 
     [
-      row.full_name,
-      row.item_title,
-      row.has_voted ? "نعم" : "لا",
-      row.cast_at
-        ? new Date(row.cast_at).toLocaleString("ar")
-        : "—"
-    ].forEach(t => {
-      tr.append(node("td", String(t)));
+      "البند",
+      "الخيار",
+      "الأصوات",
+      "الإجمالي",
+      "النسبة"
+    ].forEach(title => {
+      head.append(node("th", title));
     });
 
-    pTable.append(tr);
-  }
+    table.append(head);
 
-  // جدول النتائج الإجمالية
-  const rTable = $("results-table");
-  rTable.replaceChildren();
+    for (const row of result.results || []) {
+      const tr = node("tr");
 
-  const rHead = node("tr");
+      [
+        row.item_title,
+        row.option_label,
+        row.vote_count,
+        row.total_votes,
+        row.percentage + "%"
+      ].forEach(value => {
+        tr.append(
+          node("td", String(value ?? "—"))
+        );
+      });
 
-  [
-    "البند",
-    "الخيار",
-    "الأصوات",
-    "الإجمالي",
-    "النسبة"
-  ].forEach(t => rHead.append(node("th", t)));
-
-  rTable.append(rHead);
-
-  for (const row of results) {
-    const tr = node("tr");
-
-    [
-      row.item_title,
-      row.option_label,
-      row.vote_count,
-      row.total_votes,
-      row.percentage + "%"
-    ].forEach(t => {
-      tr.append(node("td", String(t)));
-    });
-
-    rTable.append(tr);
+      table.append(tr);
+    }
   }
 
   msg(
     "voter-message",
-    "تم تحديث بيانات العضوية والمشاركة والنتائج."
+    "تم تحديث البيانات المتاحة وفق صلاحيات حسابك."
   );
 }
 
-// تسجيل الدخول
-$("login-form").addEventListener("submit", async event => {
-  event.preventDefault();
+// ============================================
+// إدارة المحررين
+// ============================================
 
-  const button = $("login-form").querySelector("button");
-  button.disabled = true;
+async function loadEditors() {
+  if (currentAccess?.role !== "super_admin") {
+    return;
+  }
 
-  try {
-    const { error } = await db.auth.signInWithPassword({
-      email: $("email").value.trim(),
-      password: $("password").value
+  const {
+    data,
+    error
+  } = await db.rpc("admin_list_editors");
+
+  if (error) {
+    msg(
+      "editor-message",
+      "تعذر تحميل المحررين: " + error.message
+    );
+    return;
+  }
+
+  const list = $("editors-list");
+
+  list.replaceChildren();
+
+  if (!data || data.length === 0) {
+    list.append(
+      node("p", "لا يوجد محررون مسجلون حالياً.")
+    );
+    return;
+  }
+
+  for (const editor of data) {
+    const card = node(
+      "article",
+      "",
+      "entry editor-card"
+    );
+
+    card.append(
+      node(
+        "h3",
+        editor.email +
+        (editor.is_active ? " · نشط" : " · معطل")
+      )
+    );
+
+    card.append(
+      node(
+        "p",
+        "تاريخ الإنشاء: " +
+        new Date(editor.created_at).toLocaleString("ar")
+      )
+    );
+
+    const fieldset = node(
+      "fieldset",
+      "",
+      "permission-fieldset"
+    );
+
+    fieldset.append(
+      node("legend", "صلاحيات المحرر")
+    );
+
+    for (const [key, label] of PERMISSIONS) {
+      const wrapper = node(
+        "label",
+        "",
+        "check-label"
+      );
+
+      const checkbox =
+        document.createElement("input");
+
+      checkbox.type = "checkbox";
+      checkbox.value = key;
+
+      checkbox.checked =
+        (editor.permissions || []).includes(key);
+
+      wrapper.append(
+        checkbox,
+        document.createTextNode(label)
+      );
+
+      fieldset.append(wrapper);
+    }
+
+    card.append(fieldset);
+
+    const actions = node(
+      "div",
+      "",
+      "editor-actions"
+    );
+
+    // حفظ الصلاحيات
+    const save = node(
+      "button",
+      "حفظ الصلاحيات"
+    );
+
+    save.type = "button";
+
+    save.addEventListener("click", async () => {
+      const permissions = [
+        ...fieldset.querySelectorAll(
+          'input[type="checkbox"]:checked'
+        )
+      ].map(input => input.value);
+
+      save.disabled = true;
+
+      const { error } = await db.rpc(
+        "admin_update_editor_permissions",
+        {
+          p_user_id: editor.user_id,
+          p_permissions: permissions
+        }
+      );
+
+      save.disabled = false;
+
+      if (error) {
+        msg("editor-message", error.message);
+      } else {
+        msg(
+          "editor-message",
+          "تم تحديث صلاحيات " + editor.email
+        );
+
+        await loadEditors();
+      }
     });
 
-    if (error) {
+    // تفعيل وتعطيل الحساب
+    const toggle = node(
+      "button",
+      editor.is_active
+        ? "تعطيل الحساب"
+        : "تفعيل الحساب"
+    );
+
+    toggle.type = "button";
+
+    toggle.addEventListener("click", async () => {
+      const action = editor.is_active
+        ? "تعطيل"
+        : "تفعيل";
+
+      if (!confirm(
+        `هل تريد ${action} حساب ${editor.email}؟`
+      )) {
+        return;
+      }
+
+      toggle.disabled = true;
+
+      const { error } = await db.rpc(
+        "admin_set_editor_active",
+        {
+          p_user_id: editor.user_id,
+          p_active: !editor.is_active
+        }
+      );
+
+      toggle.disabled = false;
+
+      if (error) {
+        msg("editor-message", error.message);
+      } else {
+        msg(
+          "editor-message",
+          "تم تحديث حالة الحساب."
+        );
+
+        await loadEditors();
+      }
+    });
+
+    actions.append(save, toggle);
+
+    card.append(actions);
+
+    list.append(card);
+  }
+}
+
+// ============================================
+// تسجيل الدخول
+// ============================================
+
+$("login-form").addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
+
+    const button =
+      $("login-form").querySelector("button");
+
+    button.disabled = true;
+
+    try {
+      const { error } = await db.auth.signInWithPassword({
+        email: $("email").value.trim(),
+        password: $("password").value
+      });
+
+      if (error) {
+        msg("login-message", error.message);
+      } else {
+        await check();
+      }
+
+    } catch (error) {
       msg("login-message", error.message);
-    } else {
-      await check();
+
+    } finally {
+      button.disabled = false;
     }
-  } catch (e) {
-    msg("login-message", e.message);
-  } finally {
-    button.disabled = false;
   }
-});
+);
 
+// ============================================
 // إنشاء انتخابات جديدة
-$("election-form").addEventListener("submit", async event => {
-  event.preventDefault();
+// ============================================
 
-  const { error } = await db.from("elections").insert({
-    title: $("title").value.trim(),
-    description: $("description").value.trim() || null
-  });
+$("election-form").addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
 
-  msg(
-    "election-message",
-    error ? error.message : "حُفظت الانتخابات كمسودة."
-  );
+    if (!hasPermission("elections_create")) {
+      msg(
+        "election-message",
+        "لا تملك صلاحية إنشاء الانتخابات."
+      );
+      return;
+    }
 
-  if (!error) {
-    event.target.reset();
-    await load();
+    const button =
+      event.target.querySelector("button");
+
+    button.disabled = true;
+
+    const { error } = await db
+      .from("elections")
+      .insert({
+        title: $("title").value.trim(),
+        description:
+          $("description").value.trim() || null
+      });
+
+    button.disabled = false;
+
+    msg(
+      "election-message",
+      error
+        ? error.message
+        : "حُفظت الانتخابات كمسودة."
+    );
+
+    if (!error) {
+      event.target.reset();
+      await loadElections();
+    }
   }
-});
+);
 
+// ============================================
 // إضافة بند تصويت
-$("item-form").addEventListener("submit", async event => {
-  event.preventDefault();
+// ============================================
 
-  const election_id = $("item-election").value;
-  const item_type = $("item-type").value;
-  const title = $("item-title").value.trim();
-  const body = $("item-body").value.trim();
+$("item-form").addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
 
-  let labels = $("item-options").value
-    .split("\n")
-    .map(x => x.trim())
-    .filter(Boolean);
+    if (!hasPermission("elections_edit")) {
+      msg(
+        "item-message",
+        "لا تملك صلاحية تعديل الانتخابات."
+      );
+      return;
+    }
 
-  if (!labels.length && item_type !== "person") {
-    labels = ["موافق", "غير موافق", "ممتنع"];
-  }
+    const election_id =
+      $("item-election").value;
 
-  if (
-    !election_id ||
-    !title ||
-    !labels.length ||
-    new Set(labels).size !== labels.length
-  ) {
+    const item_type =
+      $("item-type").value;
+
+    const title =
+      $("item-title").value.trim();
+
+    const body =
+      $("item-body").value.trim();
+
+    let labels = $("item-options").value
+      .split("\n")
+      .map(value => value.trim())
+      .filter(Boolean);
+
+    if (!labels.length && item_type !== "person") {
+      labels = [
+        "موافق",
+        "غير موافق",
+        "ممتنع"
+      ];
+    }
+
+    if (
+      !election_id ||
+      !title ||
+      !labels.length ||
+      new Set(labels).size !== labels.length
+    ) {
+      msg(
+        "item-message",
+        "اختر الانتخابات والعنوان وأدخل خيارات صحيحة غير مكررة."
+      );
+      return;
+    }
+
+    const button =
+      event.target.querySelector("button");
+
+    button.disabled = true;
+
+    const {
+      data: item,
+      error
+    } = await db
+      .from("election_items")
+      .insert({
+        election_id,
+        item_type,
+        title,
+        body: body || null
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      button.disabled = false;
+      msg("item-message", error.message);
+      return;
+    }
+
+    const { error: optionError } = await db
+      .from("election_item_options")
+      .insert(
+        labels.map((label, sort_order) => ({
+          item_id: item.id,
+          label,
+          sort_order
+        }))
+      );
+
+    button.disabled = false;
+
     msg(
       "item-message",
-      "اختر الانتخابات والعنوان وأدخل خيارات صحيحة غير مكررة."
-    );
-    return;
-  }
-
-  const { data: item, error } = await db
-    .from("election_items")
-    .insert({
-      election_id,
-      item_type,
-      title,
-      body: body || null
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    msg("item-message", error.message);
-    return;
-  }
-
-  const { error: optionError } = await db
-    .from("election_item_options")
-    .insert(
-      labels.map((label, sort_order) => ({
-        item_id: item.id,
-        label,
-        sort_order
-      }))
+      optionError
+        ? "تم إنشاء البند لكن تعذر حفظ الخيارات: " +
+          optionError.message
+        : "تم حفظ البند وخياراته."
     );
 
-  msg(
-    "item-message",
-    optionError
-      ? "تم إنشاء البند لكن تعذر حفظ الخيارات: " + optionError.message
-      : "تم حفظ البند وخياراته."
-  );
-
-  if (!optionError) {
-    event.target.reset();
-    await load();
-  }
-});
-
-// إضافة عضو وإنشاء رمز
-$("voter-form").addEventListener("submit", async event => {
-  event.preventDefault();
-
-  const electionId = $("voter-election").value;
-
-  if (!electionId) {
-    msg("voter-message", "اختر الانتخابات أولاً.");
-    return;
-  }
-
-  const { data, error } = await db.rpc(
-    "admin_add_eligible_voter",
-    {
-      p_election_id: electionId,
-      p_full_name: $("voter-name").value.trim(),
-      p_phone_e164: $("voter-phone").value.trim()
+    if (!optionError) {
+      event.target.reset();
+      await loadElections();
     }
-  );
-
-  if (error) {
-    msg("voter-message", error.message);
-    return;
   }
+);
 
-  if (!data || !data.length || !data[0].membership_code) {
-    msg("voter-message", "لم يتم استلام رمز العضوية.");
-    return;
+// ============================================
+// إضافة عضو وإنشاء رمز
+// ============================================
+
+$("voter-form").addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
+
+    if (!hasPermission("voters_manage")) {
+      msg(
+        "voter-message",
+        "لا تملك صلاحية إدارة الأعضاء."
+      );
+      return;
+    }
+
+    const electionId =
+      $("voter-election").value;
+
+    if (!electionId) {
+      msg(
+        "voter-message",
+        "اختر الانتخابات أولاً."
+      );
+      return;
+    }
+
+    const button =
+      event.target.querySelector("button");
+
+    button.disabled = true;
+
+    const {
+      data,
+      error
+    } = await db.rpc(
+      "admin_add_eligible_voter",
+      {
+        p_election_id: electionId,
+        p_full_name: $("voter-name").value.trim(),
+        p_phone_e164: $("voter-phone").value.trim()
+      }
+    );
+
+    button.disabled = false;
+
+    if (error) {
+      msg("voter-message", error.message);
+      return;
+    }
+
+    if (
+      !data?.length ||
+      !data[0].membership_code
+    ) {
+      msg(
+        "voter-message",
+        "لم يتم استلام رمز العضوية."
+      );
+      return;
+    }
+
+    showCode(
+      data[0].membership_code,
+      "رمز العضوية الجديد للعضو: " +
+      data[0].full_name
+    );
+
+    event.target.reset();
+
+    $("voter-election").value = electionId;
+
+    await loadVoterData();
   }
+);
 
-  await loadVoters();
+// ============================================
+// إنشاء حساب محرر
+// ============================================
 
-  showCode(
-    data[0].membership_code,
-    "رمز العضوية الجديد للعضو: " + data[0].full_name
-  );
+$("editor-form").addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
 
-  event.target.reset();
-  $("voter-election").value = electionId;
-});
+    if (
+      currentAccess?.role !== "super_admin" ||
+      currentAccess?.is_active !== true
+    ) {
+      msg(
+        "editor-message",
+        "إنشاء المحررين متاح للمدير العام النشط فقط."
+      );
+      return;
+    }
 
-// تحديث بيانات الأعضاء
-$("load-voters").addEventListener("click", loadVoters);
+    const full_name =
+      $("editor-name").value.trim();
 
+    const email =
+      $("editor-email").value.trim().toLowerCase();
+
+    const password =
+      $("editor-password").value;
+
+    const confirmPassword =
+      $("editor-password-confirm").value;
+
+    const permissions = [
+      ...document.querySelectorAll(
+        'input[name="editor-permission"]:checked'
+      )
+    ].map(input => input.value);
+
+    if (!full_name || !email || !password) {
+      msg(
+        "editor-message",
+        "أكمل البيانات المطلوبة."
+      );
+      return;
+    }
+
+    if (password.length < 10) {
+      msg(
+        "editor-message",
+        "كلمة المرور يجب ألا تقل عن 10 أحرف."
+      );
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      msg(
+        "editor-message",
+        "كلمتا المرور غير متطابقتين."
+      );
+      return;
+    }
+
+    const button = $("create-editor-button");
+
+    button.disabled = true;
+
+    msg(
+      "editor-message",
+      "جارٍ إنشاء الحساب وتسجيل صلاحياته..."
+    );
+
+    try {
+      const {
+        data,
+        error
+      } = await db.functions.invoke(
+        EDITOR_FUNCTION,
+        {
+          body: {
+            full_name,
+            email,
+            password,
+            permissions
+          }
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.success) {
+        throw new Error(
+          data?.error || "لم يكتمل إنشاء الحساب."
+        );
+      }
+
+      event.target.reset();
+
+      msg(
+        "editor-message",
+        "تم إنشاء حساب المحرر بنجاح. سلّمه بيانات الدخول بطريقة آمنة."
+      );
+
+      await loadEditors();
+
+    } catch (error) {
+      msg(
+        "editor-message",
+        "تعذر إنشاء الحساب: " +
+        (error.message || "خطأ غير معروف")
+      );
+
+    } finally {
+      button.disabled = false;
+    }
+  }
+);
+
+// ============================================
+// أزرار التحديث
+// ============================================
+
+$("load-voters").addEventListener(
+  "click",
+  loadVoterData
+);
+
+$("voter-election").addEventListener(
+  "change",
+  loadVoterData
+);
+
+// ============================================
 // تسجيل الخروج
-$("signout").addEventListener("click", async () => {
-  await db.auth.signOut();
-  await check();
-});
+// ============================================
 
+$("signout").addEventListener(
+  "click",
+  async () => {
+    await db.auth.signOut();
+    await check();
+  }
+);
+
+// ============================================
 // متابعة حالة الجلسة
+// ============================================
+
 db.auth.onAuthStateChange(event => {
   if (event === "SIGNED_OUT") {
+    currentAccess = null;
+    currentPermissions = [];
+
     $("login-panel").hidden = false;
     $("dashboard").hidden = true;
   }
 });
 
+// ============================================
 // التحقق عند فتح لوحة الإدارة
-check().catch(e => {
-  msg("login-message", e.message);
+// ============================================
+
+check().catch(error => {
+  msg(
+    "login-message",
+    error.message || "تعذر التحقق من صلاحيات الحساب."
+  );
 });

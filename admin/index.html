@@ -1,42 +1,246 @@
-
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>إدارة منصة الشورى</title><link rel="stylesheet" href="admin.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>إدارة منصة الشورى</title>
+  <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-<header class="topbar"><a href="../">منصة الشورى · لوحة الإدارة</a><a href="../">واجهة الناخبين</a></header>
+
+<header class="topbar">
+  <a href="../">منصة الشورى · لوحة الإدارة</a>
+  <a href="../">واجهة الناخبين</a>
+</header>
+
 <main>
-<section id="login-panel" class="panel"><h1>دخول اللجنة</h1>
-<form id="login-form"><label>البريد الإلكتروني</label><input id="email" type="email" required>
-<label>كلمة المرور</label><input id="password" type="password" required>
-<button>تسجيل الدخول</button><p id="login-message"></p></form></section>
-<section id="dashboard" hidden>
-<div class="welcome"><h1>إدارة الانتخابات</h1><span id="admin-email"></span><button id="signout" type="button">تسجيل الخروج</button></div>
-<section class="panel"><h2>إنشاء انتخابات جديدة</h2>
-<form id="election-form"><label>عنوان الانتخابات</label><input id="title" maxlength="180" required>
-<label>وصف مختصر</label><textarea id="description"></textarea><button>حفظ كمسودة</button><p id="election-message"></p></form></section>
-<section class="panel"><h2>إضافة بند تصويت</h2>
-<form id="item-form"><label>الانتخابات</label><select id="item-election" required><option value="">اختر الانتخابات</option></select>
-<label>نوع البند</label><select id="item-type"><option value="person">انتخاب شخص</option><option value="article">مادة</option><option value="law">قانون</option><option value="proposal">مقترح</option></select>
-<label>عنوان البند</label><input id="item-title" required maxlength="240">
-<label>نص البند أو تفاصيله</label><textarea id="item-body"></textarea>
-<label>خيارات التصويت (كل خيار في سطر)</label><textarea id="item-options" placeholder="أسماء المترشحين كل اسم في سطر، أو اتركه فارغاً للموافقة/الرفض/الامتناع."></textarea>
-<button>حفظ البند وخياراته</button><p id="item-message"></p></form></section>
-<section class="panel"><h2>إدارة الأعضاء ورموز العضوية</h2>
-<form id="voter-form"><label>الانتخابات</label><select id="voter-election" required><option value="">اختر الانتخابات</option></select>
-<label>اسم العضو</label><input id="voter-name" required>
-<label>رقم الهاتف (مع مفتاح الدولة)</label><input id="voter-phone" required placeholder="+222...">
-<button>إضافة العضو وإنشاء رمز</button></form>
-<div id="new-code-result" class="code-result" hidden></div>
-<div class="toolbar"><button type="button" id="load-voters">تحديث بيانات الأعضاء</button></div>
-<p id="voter-message"></p><div id="voter-summary"></div>
-<h3>سجل الأعضاء</h3><div class="table-wrap"><table id="voter-table"></table></div>
-<h3>المشاركة حسب العضو والبند</h3><div class="table-wrap"><table id="participation-table"></table></div>
-<h3>النتائج الإجمالية — دون ربط الاختيار باسم صاحبه</h3><div class="table-wrap"><table id="results-table"></table></div>
-</section>
-<section class="panel"><h2>الانتخابات المسجلة وبنودها</h2><div id="elections-list"></div></section>
-</section></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="admin.js"></script>
-</body></html>
+
+  <!-- تسجيل الدخول -->
+  <section id="login-panel" class="panel">
+    <h1>دخول اللجنة</h1>
+
+    <form id="login-form">
+      <label for="email">البريد الإلكتروني</label>
+      <input id="email" type="email" required>
+
+      <label for="password">كلمة المرور</label>
+      <input id="password" type="password" required>
+
+      <button type="submit">تسجيل الدخول</button>
+      <p id="login-message" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <!-- لوحة الإدارة -->
+  <section id="dashboard" hidden>
+
+    <div class="welcome">
+      <h1>إدارة الانتخابات</h1>
+      <span id="admin-email"></span>
+      <span id="admin-role"></span>
+      <button id="signout" type="button">تسجيل الخروج</button>
+    </div>
+
+    <!-- إدارة المحررين: المدير العام فقط -->
+    <section class="panel" id="editor-management" hidden>
+      <h2>إدارة المحررين</h2>
+
+      <p>
+        يمكنك إنشاء حساب محرر وتحديد الصلاحيات التي تسمح له باستخدامها.
+        لا يتم إرسال دعوة بريدية.
+      </p>
+
+      <form id="editor-form">
+
+        <label for="editor-name">اسم المحرر</label>
+        <input id="editor-name" type="text" maxlength="120" required>
+
+        <label for="editor-email">البريد الإلكتروني (اسم الدخول)</label>
+        <input id="editor-email" type="email" required>
+
+        <label for="editor-password">كلمة المرور (10 أحرف على الأقل)</label>
+        <input
+          id="editor-password"
+          type="password"
+          minlength="10"
+          autocomplete="new-password"
+          required
+        >
+
+        <label for="editor-password-confirm">تأكيد كلمة المرور</label>
+        <input
+          id="editor-password-confirm"
+          type="password"
+          minlength="10"
+          autocomplete="new-password"
+          required
+        >
+
+        <fieldset class="permission-fieldset">
+          <legend>صلاحيات المحرر</legend>
+
+          <label class="check-label">
+            <input type="checkbox" name="editor-permission" value="elections_create">
+            إنشاء الانتخابات
+          </label>
+
+          <label class="check-label">
+            <input type="checkbox" name="editor-permission" value="elections_edit">
+            تعديل الانتخابات والبنود
+          </label>
+
+          <label class="check-label">
+            <input type="checkbox" name="editor-permission" value="elections_publish">
+            نشر الانتخابات وإيقافها
+          </label>
+
+          <label class="check-label">
+            <input type="checkbox" name="editor-permission" value="voters_manage">
+            إدارة الأعضاء ورموز العضوية
+          </label>
+
+          <label class="check-label">
+            <input type="checkbox" name="editor-permission" value="results_view">
+            عرض النتائج الإجمالية
+          </label>
+
+          <label class="check-label">
+            <input type="checkbox" name="editor-permission" value="participation_view">
+            متابعة المشاركة
+          </label>
+
+          <label class="check-label">
+            <input type="checkbox" name="editor-permission" value="reports_view">
+            إعداد التقارير
+          </label>
+        </fieldset>
+
+        <button id="create-editor-button" type="submit">
+          إنشاء حساب المحرر
+        </button>
+
+        <p id="editor-message" aria-live="polite"></p>
+      </form>
+
+      <h3>المحررون المسجلون</h3>
+      <div id="editors-list"></div>
+    </section>
+
+    <!-- إنشاء انتخابات -->
+    <section class="panel" id="election-create-panel" hidden>
+      <h2>إنشاء انتخابات جديدة</h2>
+
+      <form id="election-form">
+        <label for="title">عنوان الانتخابات</label>
+        <input id="title" maxlength="180" required>
+
+        <label for="description">وصف مختصر</label>
+        <textarea id="description"></textarea>
+
+        <button type="submit">حفظ كمسودة</button>
+        <p id="election-message"></p>
+      </form>
+    </section>
+
+    <!-- إضافة بند -->
+    <section class="panel" id="item-create-panel" hidden>
+      <h2>إضافة بند تصويت</h2>
+
+      <form id="item-form">
+        <label for="item-election">الانتخابات</label>
+        <select id="item-election" required>
+          <option value="">اختر الانتخابات</option>
+        </select>
+
+        <label for="item-type">نوع البند</label>
+        <select id="item-type">
+          <option value="person">انتخاب شخص</option>
+          <option value="article">مادة</option>
+          <option value="law">قانون</option>
+          <option value="proposal">مقترح</option>
+        </select>
+
+        <label for="item-title">عنوان البند</label>
+        <input id="item-title" required maxlength="240">
+
+        <label for="item-body">نص البند أو تفاصيله</label>
+        <textarea id="item-body"></textarea>
+
+        <label for="item-options">خيارات التصويت (كل خيار في سطر)</label>
+        <textarea
+          id="item-options"
+          placeholder="أسماء المترشحين كل اسم في سطر، أو اتركه فارغاً للموافقة/الرفض/الامتناع."
+        ></textarea>
+
+        <button type="submit">حفظ البند وخياراته</button>
+        <p id="item-message"></p>
+      </form>
+    </section>
+
+    <!-- إدارة الأعضاء -->
+    <section class="panel" id="voter-management-panel" hidden>
+      <h2>إدارة الأعضاء ورموز العضوية</h2>
+
+      <div id="voter-add-area" hidden>
+        <form id="voter-form">
+
+          <label for="voter-election">الانتخابات</label>
+          <select id="voter-election" required>
+            <option value="">اختر الانتخابات</option>
+          </select>
+
+          <label for="voter-name">اسم العضو</label>
+          <input id="voter-name" required>
+
+          <label for="voter-phone">رقم الهاتف (مع مفتاح الدولة)</label>
+          <input id="voter-phone" required placeholder="+222...">
+
+          <button type="submit">إضافة العضو وإنشاء رمز</button>
+        </form>
+
+        <div id="new-code-result" class="code-result" hidden></div>
+      </div>
+
+      <div class="toolbar" id="voter-refresh-area" hidden>
+        <button type="button" id="load-voters">تحديث البيانات</button>
+      </div>
+
+      <p id="voter-message" aria-live="polite"></p>
+      <div id="voter-summary"></div>
+
+      <div id="voter-list-area" hidden>
+        <h3>سجل الأعضاء</h3>
+        <div class="table-wrap">
+          <table id="voter-table"></table>
+        </div>
+      </div>
+
+      <div id="participation-area" hidden>
+        <h3>المشاركة حسب العضو والبند</h3>
+        <div class="table-wrap">
+          <table id="participation-table"></table>
+        </div>
+      </div>
+
+      <div id="results-area" hidden>
+        <h3>النتائج الإجمالية — دون ربط الاختيار باسم صاحبه</h3>
+        <div class="table-wrap">
+          <table id="results-table"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- عرض الانتخابات -->
+    <section class="panel" id="elections-list-panel" hidden>
+      <h2>الانتخابات المسجلة وبنودها</h2>
+      <div id="elections-list"></div>
+    </section>
+
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="admin.js"></script>
+
+</body>
+</html>

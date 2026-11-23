@@ -1,3 +1,6 @@
+/* =====================================
+   الإعدادات العامة
+===================================== */
 
 * {
   box-sizing: border-box;
@@ -14,13 +17,15 @@ body {
   line-height: 1.7;
 }
 
-.container {
+main {
   width: 100%;
   max-width: 1150px;
   margin: 0 auto;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   color: #172b4d;
 }
 
@@ -28,15 +33,68 @@ h1 {
   margin-bottom: 25px;
 }
 
-section,
+/* =====================================
+   الشريط العلوي
+===================================== */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  padding: 12px 18px;
+  margin: -20px -20px 20px;
+
+  background: #172b4d;
+  color: #fff;
+}
+
+.topbar a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+/* =====================================
+   الأقسام
+===================================== */
+
+.panel,
 .entry {
   background: #fff;
   padding: 20px;
   margin: 18px 0;
   border: 1px solid #e5e9f0;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .04);
 }
+
+.entry {
+  box-shadow: none;
+}
+
+.welcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  padding: 15px 18px;
+  background: #fff;
+  border: 1px solid #e5e9f0;
+  border-radius: 12px;
+}
+
+.welcome h1 {
+  margin: 0;
+}
+
+/* =====================================
+   النماذج
+===================================== */
 
 form {
   display: grid;
@@ -52,8 +110,10 @@ select,
 textarea {
   width: 100%;
   padding: 12px;
+
   border: 1px solid #ccd4df;
   border-radius: 8px;
+
   font: inherit;
   background: #fff;
 }
@@ -63,15 +123,32 @@ textarea {
   resize: vertical;
 }
 
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #2457a6;
+  box-shadow: 0 0 0 2px rgba(36, 87, 166, .12);
+}
+
+/* =====================================
+   الأزرار
+===================================== */
+
 button {
   padding: 11px 18px;
+
   border: 0;
   border-radius: 8px;
+
   background: #174b83;
   color: #fff;
+
   font: inherit;
   font-weight: bold;
+
   cursor: pointer;
+  transition: background .2s;
 }
 
 button:hover {
@@ -81,6 +158,15 @@ button:hover {
 button:disabled {
   opacity: .6;
   cursor: not-allowed;
+}
+
+/* =====================================
+   الجداول
+===================================== */
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
 }
 
 table {
@@ -103,53 +189,148 @@ th {
   color: #172b4d;
 }
 
-.entry {
-  box-shadow: none;
-}
+/* =====================================
+   رمز العضوية
+===================================== */
 
-#new-code-result {
+.code-result {
   margin-top: 15px;
   padding: 15px;
+
   border: 1px solid #b8cce2;
   border-radius: 8px;
+
   background: #f0f6fc;
+
+  display: grid;
+  gap: 8px;
 }
 
-#new-code-result code {
+.code-result code {
   display: block;
+
   direction: ltr;
   text-align: center;
+
   font-size: 20px;
   font-weight: bold;
+
   padding: 12px;
   margin: 10px 0;
+
   overflow-wrap: anywhere;
 }
 
-#new-code-result button {
-  margin-top: 8px;
+/* =====================================
+   إدارة المحررين
+===================================== */
+
+.permission-fieldset {
+  border: 1px solid #d5dce6;
+  border-radius: 10px;
+
+  padding: 14px;
+  margin: 14px 0;
+
+  display: grid;
+  gap: 10px;
 }
+
+.permission-fieldset legend {
+  font-weight: bold;
+  padding: 0 8px;
+}
+
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  font-weight: normal;
+}
+
+.check-label input {
+  width: auto;
+  margin: 0;
+}
+
+.editor-card {
+  margin-top: 14px;
+  padding: 15px;
+
+  border: 1px solid #e0e5ec;
+  border-radius: 8px;
+
+  background: #fff;
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  margin-top: 12px;
+}
+
+.editor-actions button + button {
+  background: #6b3d3d;
+}
+
+.editor-actions button + button:hover {
+  background: #4c2929;
+}
+
+/* =====================================
+   رسائل النظام
+===================================== */
 
 #login-message,
 #voter-message,
 #item-message,
-#election-message {
-  color: #a12b2b;
+#election-message,
+#editor-message {
   overflow-wrap: anywhere;
 }
+
+#editor-message {
+  color: #174b83;
+}
+
+#login-message {
+  color: #a12b2b;
+}
+
+/* =====================================
+   إخفاء العناصر
+===================================== */
 
 [hidden] {
   display: none !important;
 }
 
+/* =====================================
+   الهواتف
+===================================== */
+
 @media (max-width: 700px) {
+
   body {
     padding: 12px;
   }
 
-  section {
+  .topbar {
+    margin: -12px -12px 16px;
+  }
+
+  .panel,
+  .entry {
     padding: 14px;
-    overflow-x: auto;
+  }
+
+  .welcome {
+    align-items: flex-start;
   }
 
   table {
@@ -162,5 +343,14 @@ th {
 
   h2 {
     font-size: 19px;
+  }
+
+  .editor-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .editor-actions button {
+    width: 100%;
   }
 }

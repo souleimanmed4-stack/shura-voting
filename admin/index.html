@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -21,10 +22,10 @@
 
     <form id="login-form">
       <label for="email">البريد الإلكتروني</label>
-      <input id="email" type="email" required>
+      <input id="email" type="email" autocomplete="username" required>
 
       <label for="password">كلمة المرور</label>
-      <input id="password" type="password" required>
+      <input id="password" type="password" autocomplete="current-password" required>
 
       <button type="submit">تسجيل الدخول</button>
       <p id="login-message" aria-live="polite"></p>
@@ -41,7 +42,7 @@
       <button id="signout" type="button">تسجيل الخروج</button>
     </div>
 
-    <!-- إدارة المحررين: المدير العام فقط -->
+    <!-- إدارة المحررين -->
     <section class="panel" id="editor-management" hidden>
       <h2>إدارة المحررين</h2>
 
@@ -240,7 +241,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="admin.js?v=20261124-1"></script>
+<script src="admin.js?v=20261124-2"></script>
 
 </body>
 </html>

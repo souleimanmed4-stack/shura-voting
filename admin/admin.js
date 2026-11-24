@@ -3,10 +3,7 @@
 // ============================================
 
 const SUPABASE_URL = "https://zwduejenlwnixsfpmqqx.supabase.co";
-
 const SUPABASE_KEY = "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv";
-
-// اسم Edge Function المنشورة مسبقاً
 const EDITOR_FUNCTION = "hyper-action";
 
 const $ = id => document.getElementById(id);
@@ -29,6 +26,10 @@ const PERMISSIONS = [
 
 let currentAccess = null;
 let currentPermissions = [];
+
+// متغيرات مراقبة الحساب
+let accessMonitorRunning = false;
+let forcedLogoutInProgress = false;
 
 // ============================================
 // أدوات مساعدة
@@ -107,18 +108,14 @@ function applyAccessUI() {
   $("admin-role").textContent =
     isSuperAdmin ? "المدير العام" : "محرر";
 
-  // إدارة المحررين للمدير العام فقط
   $("editor-management").hidden = !isSuperAdmin;
 
-  // إنشاء الانتخابات
   $("election-create-panel").hidden =
     !hasPermission("elections_create");
 
-  // تعديل البنود
   $("item-create-panel").hidden =
     !hasPermission("elections_edit");
 
-  // قائمة الانتخابات
   $("elections-list-panel").hidden = false;
 
   const canAccessVoters =
@@ -171,7 +168,6 @@ async function check() {
     return;
   }
 
-  // التحقق من صلاحيات الحساب عبر RPC
   const {
     data,
     error
@@ -237,6 +233,108 @@ async function check() {
     await loadEditors();
   }
 }
+
+// ============================================
+// مراقبة تعطيل الحساب وإعادته لتسجيل الدخول
+// ============================================
+
+async function returnToLoginBecauseDisabled() {
+  if (forcedLogoutInProgress) return;
+
+  forcedLogoutInProgress = true;
+
+  currentAccess = null;
+  currentPermissions = [];
+
+  try {
+    await db.auth.signOut();
+  } catch (error) {
+    console.error("تعذر إنهاء الجلسة:", error);
+  }
+
+  $("dashboard").hidden = true;
+  $("login-panel").hidden = false;
+
+  msg(
+    "login-message",
+    "تم تعطيل هذا الحساب من المدير العام. انتهت صلاحية دخولك، ويمكنك التواصل مع الإدارة."
+  );
+
+  forcedLogoutInProgress = false;
+}
+
+async function monitorAdminAccess() {
+  if (
+    accessMonitorRunning ||
+    forcedLogoutInProgress ||
+    !currentAccess
+  ) {
+    return;
+  }
+
+  accessMonitorRunning = true;
+
+  try {
+    const {
+      data,
+      error
+    } = await db.rpc("admin_get_my_access");
+
+    // لا نسجل الخروج بسبب انقطاع مؤقت في الشبكة
+    if (error) {
+      console.warn(
+        "تعذر تحديث صلاحيات الحساب:",
+        error.message
+      );
+      return;
+    }
+
+    const access = Array.isArray(data)
+      ? data[0]
+      : data;
+
+    if (
+      !access ||
+      access.is_active !== true ||
+      !["super_admin", "editor", "committee"].includes(access.role)
+    ) {
+      await returnToLoginBecauseDisabled();
+      return;
+    }
+
+    // تحديث الصلاحيات إذا غيّرها المدير العام
+    currentAccess = access;
+
+    currentPermissions =
+      Array.isArray(access.permissions)
+        ? access.permissions
+        : [];
+
+    applyAccessUI();
+
+  } catch (error) {
+    console.warn(
+      "تعذر التحقق الدوري من صلاحيات الحساب:",
+      error
+    );
+
+  } finally {
+    accessMonitorRunning = false;
+  }
+}
+
+// فحص دوري كل 10 ثوانٍ
+setInterval(monitorAdminAccess, 10000);
+
+// الفحص فور العودة إلى صفحة الإدارة
+document.addEventListener(
+  "visibilitychange",
+  () => {
+    if (!document.hidden) {
+      monitorAdminAccess();
+    }
+  }
+);
 
 // ============================================
 // تحميل الانتخابات وبنودها
@@ -338,7 +436,6 @@ async function loadElections() {
     $("elections-list").append(card);
   }
 
-  // المحافظة على الانتخابات المختارة
   if (
     previousVoterValue &&
     [...voterSelect.options].some(
@@ -412,10 +509,7 @@ async function loadVoterData() {
     result[keys[i]] = responses[i].data || [];
   }
 
-  // ==========================================
   // جدول الأعضاء
-  // ==========================================
-
   if (hasPermission("voters_manage")) {
     const voters = result.voters || [];
 
@@ -466,7 +560,6 @@ async function loadVoterData() {
 
       const actions = node("td");
 
-      // تفعيل وتعطيل العضو
       const toggle = node(
         "button",
         voter.is_enabled ? "تعطيل" : "تفعيل"
@@ -496,7 +589,6 @@ async function loadVoterData() {
 
       actions.append(toggle);
 
-      // إعادة إصدار رمز العضوية
       const reset = node(
         "button",
         "إعادة إصدار رمز"
@@ -552,10 +644,7 @@ async function loadVoterData() {
     }
   }
 
-  // ==========================================
   // جدول المشاركة
-  // ==========================================
-
   if (hasPermission("participation_view")) {
     const table = $("participation-table");
 
@@ -594,10 +683,7 @@ async function loadVoterData() {
     }
   }
 
-  // ==========================================
   // النتائج الإجمالية
-  // ==========================================
-
   if (hasPermission("results_view")) {
     const table = $("results-table");
 
@@ -740,7 +826,6 @@ async function loadEditors() {
       "editor-actions"
     );
 
-    // حفظ الصلاحيات
     const save = node(
       "button",
       "حفظ الصلاحيات"
@@ -779,7 +864,6 @@ async function loadEditors() {
       }
     });
 
-    // تفعيل وتعطيل الحساب
     const toggle = node(
       "button",
       editor.is_active

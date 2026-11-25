@@ -2,18 +2,131 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#153954"><meta name="description" content="منصة الشورى للتصويت الإلكتروني">
-<title>منصة الشورى للتصويت</title><link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#153954">
+<meta name="description" content="منصة الشورى للتصويت الإلكتروني">
+<title>منصة الشورى للتصويت</title>
+<link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
-<header class="topbar"><a class="brand" href="./"><span class="brand-mark">ش</span><span><strong>منصة الشورى</strong><small>للتصويت الإلكتروني</small></span></a><span class="secure-note"><i></i> منصة مستقلة</span></header>
+<header class="topbar">
+  <a class="brand" href="./">
+    <span class="brand-mark">ش</span>
+    <span>
+      <strong>منصة الشورى</strong>
+      <small>للتصويت الإلكتروني</small>
+    </span>
+  </a>
+  <span class="secure-note"><i></i> منصة مستقلة</span>
+</header>
+
 <main>
-<section class="hero"><div class="hero-copy"><p class="eyebrow">صوتك أمانة · مشاركتك تصنع القرار</p><h1>مساحة موثوقة<br>للمشاركة في <em>صناعة القرار</em></h1><p class="intro">منصة إلكترونية لتنظيم عمليات التصويت، وإتاحة المشاركة للأعضاء المؤهلين، ومتابعة النتائج وفق إجراءات واضحة.</p><div class="actions"><a class="primary" href="#election">الانتخابات المتاحة</a><a class="secondary" href="#how">كيف تعمل المنصة؟</a></div></div><div class="visual" aria-hidden="true"><div class="orbit one"></div><div class="orbit two"></div><div class="vote-card"><small>الشورى · المشاركة</small><b>✓</b><strong>صوت واحد</strong><span>ومشاركة مسؤولة</span><hr><i></i><i></i><i></i></div><span class="spark">✦</span></div></section>
-<section class="status" id="election" aria-live="polite"><div class="status-icon">◷</div><div><small>حالة التصويت</small><h2 id="election-status-title">جارٍ تحميل بيانات الانتخابات...</h2><p id="election-status-description">نتصل بقاعدة بيانات المنصة لعرض الانتخابات المنشورة.</p></div><span class="pill" id="election-status-pill">اتصال مباشر</span></section>
-<section class="elections-list" id="election-list" aria-live="polite"></section>
-<section class="steps-section" id="how"><div class="heading"><small>خطوات المشاركة</small><h2>عملية واضحة من البداية إلى النهاية</h2></div><div class="steps"><article><b>01</b><h3>التحقق من العضوية</h3><p>أدخل رمز العضوية المخصص لك، وتُحفظ جلسة الدخول على الجهاز نفسه.</p></article><article><b>02</b><h3>الإدلاء بالصوت</h3><p>اختر إجابة واحدة في كل بند؛ ولا يمكن تكرار التصويت في البند نفسه.</p></article><article><b>03</b><h3>متابعة المشاركة</h3><p>تُسجل المشاركة دون إظهار اختيار العضو باسمه، وتُعرض النتائج وفق الصلاحيات.</p></article></div></section>
-<section class="principles"><div><span>١</span><strong>الخصوصية</strong><small>فصل بيانات العضوية عن سجل الاختيار.</small></div><div><span>٢</span><strong>النزاهة</strong><small>منع تكرار التصويت وتوثيق الإجراءات.</small></div><div><span>٣</span><strong>الشفافية</strong><small>إتاحة المعلومات والنتائج وفق الصلاحيات.</small></div></section>
-</main><footer><span>منصة الشورى للتصويت</span><span>© <span id="year"></span> · جميع الحقوق محفوظة</span></footer>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script>
-</body></html>
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">صوتك أمانة · مشاركتك تصنع القرار</p>
+      <h1>مساحة موثوقة<br>للمشاركة في <em>صناعة القرار</em></h1>
+      <p class="intro">
+        منصة إلكترونية لتنظيم عمليات التصويت، وتمكين الأعضاء من المشاركة
+        عبر حسابات شخصية دائمة، وفق إجراءات واضحة تضمن النزاهة والخصوصية.
+      </p>
+      <div class="actions">
+        <a class="primary" href="#election">الانتخابات المتاحة</a>
+        <a class="secondary" href="#how">كيف تعمل المنصة؟</a>
+      </div>
+    </div>
+
+    <div class="visual" aria-hidden="true">
+      <div class="orbit one"></div>
+      <div class="orbit two"></div>
+      <div class="vote-card">
+        <small>الشورى · المشاركة</small>
+        <b>✓</b>
+        <strong>صوت واحد</strong>
+        <span>ومشاركة مسؤولة</span>
+        <hr>
+        <i></i><i></i><i></i>
+      </div>
+      <span class="spark">✦</span>
+    </div>
+  </section>
+
+  <section class="status" id="election" aria-live="polite">
+    <div class="status-icon">◷</div>
+    <div>
+      <small>حالة التصويت</small>
+      <h2 id="election-status-title">جارٍ تحميل بيانات الانتخابات...</h2>
+      <p id="election-status-description">
+        نتصل بقاعدة بيانات المنصة لعرض الانتخابات المنشورة.
+      </p>
+    </div>
+    <span class="pill" id="election-status-pill">اتصال مباشر</span>
+  </section>
+
+  <section class="elections-list" id="election-list" aria-live="polite"></section>
+
+  <section class="steps-section" id="how">
+    <div class="heading">
+      <small>خطوات المشاركة</small>
+      <h2>عملية واضحة من البداية إلى النهاية</h2>
+    </div>
+
+    <div class="steps">
+      <article>
+        <b>01</b>
+        <h3>إنشاء الحساب والتحقق</h3>
+        <p>
+          أنشئ حسابك باستخدام رقم هاتفك ورمز العضوية المخصص لك،
+          وحدد كلمة مرور خاصة بك.
+        </p>
+      </article>
+
+      <article>
+        <b>02</b>
+        <h3>الدخول والمشاركة</h3>
+        <p>
+          استخدم رقم هاتفك وكلمة المرور للدخول من أي جهاز،
+          ثم أدلِ بصوتك في البنود المتاحة لك.
+        </p>
+      </article>
+
+      <article>
+        <b>03</b>
+        <h3>متابعة حالة المشاركة</h3>
+        <p>
+          يمكنك الاطلاع على عضوياتك وحالة مشاركتك،
+          مع الحفاظ على سرية الاختيار ومنع تكرار التصويت.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="principles">
+    <div>
+      <span>١</span>
+      <strong>الخصوصية</strong>
+      <small>فصل بيانات العضوية عن سجل الاختيار.</small>
+    </div>
+    <div>
+      <span>٢</span>
+      <strong>النزاهة</strong>
+      <small>منع تكرار التصويت وتوثيق الإجراءات.</small>
+    </div>
+    <div>
+      <span>٣</span>
+      <strong>الشفافية</strong>
+      <small>إتاحة المعلومات والنتائج وفق الصلاحيات.</small>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>منصة الشورى للتصويت</span>
+  <span>© <span id="year"></span> · جميع الحقوق محفوظة</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>

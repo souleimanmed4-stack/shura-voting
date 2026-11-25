@@ -79,3 +79,179 @@ input:focus{border-color:var(--navy2);box-shadow:0 0 0 3px #204e6c15}
 .principles small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
 footer{border-top:1px solid var(--line);padding:22px max(calc((100% - 1160px)/2),24px);display:flex;justify-content:space-between;gap:15px;color:var(--muted);font-size:11px}
 @media(max-width:700px){.topbar{height:68px;padding:0 17px}main{padding:18px 15px 45px}.hero{grid-template-columns:1fr;padding:30px 23px;gap:5px;min-height:auto}.hero h1{font-size:36px}.visual{height:210px}.orbit{width:200px;height:200px}.orbit.two{width:160px;height:160px}.vote-card{transform:scale(.82) rotate(-5deg)}.status{padding:17px;gap:12px;align-items:flex-start}.status-icon{width:40px;height:40px}.status h2{font-size:14px}.pill{font-size:9px;padding:4px 8px}.steps,.principles{grid-template-columns:1fr}.heading h2{font-size:21px}.membership-form{flex-direction:column}.membership-form input,.membership-form button{width:100%}footer{padding:18px;flex-direction:column;gap:4px}}
+
+/* نظام حساب الناخب الدائم */
+
+.auth-panel,
+.link-membership-section {
+  margin-top: 22px;
+  padding: 20px;
+  background: #f8fafb;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+
+.auth-panel h4,
+.link-membership-section h4 {
+  margin: 0 0 10px;
+  color: var(--navy);
+  font-size: 16px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 9px;
+  margin: 18px 0;
+  flex-wrap: wrap;
+}
+
+.auth-tab {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 15px;
+  background: white;
+  color: var(--navy);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-tab.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: white;
+}
+
+.auth-form-area {
+  width: 100%;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 13px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.auth-field input {
+  width: 100%;
+  min-width: 0;
+  direction: ltr;
+  text-align: left;
+  background: white;
+}
+
+.auth-field input::placeholder {
+  text-align: right;
+  direction: rtl;
+}
+
+.membership-form .vote-submit {
+  min-height: 45px;
+}
+
+.account-header {
+  margin: 18px 0;
+  padding: 18px;
+  background: #f1f6f8;
+  border: 1px solid #dce7ec;
+  border-radius: 12px;
+}
+
+.account-header h3 {
+  margin: 0 0 5px;
+  color: var(--navy);
+  font-size: 17px;
+}
+
+.account-header p {
+  margin: 5px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.account-detail {
+  direction: ltr;
+  text-align: right;
+}
+
+.membership-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 15px 0;
+  padding: 13px;
+  background: white;
+  border: 1px dashed #c7d4dc;
+  border-radius: 9px;
+}
+
+.membership-code-box span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.membership-code-box strong {
+  direction: ltr;
+  letter-spacing: 2px;
+  color: var(--navy);
+  font-size: 17px;
+}
+
+.link-membership-section {
+  margin-top: 20px;
+}
+
+.auth-form-area .membership-form,
+.link-membership-section .membership-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.auth-form-area .membership-form > *,
+.link-membership-section .membership-form > * {
+  width: 100%;
+}
+
+.auth-form-area .membership-form .vote-submit,
+.link-membership-section .membership-form .vote-submit {
+  margin-top: 5px;
+}
+
+.auth-panel .vote-message,
+.link-membership-section .vote-message {
+  line-height: 1.9;
+}
+
+@media(max-width:600px) {
+  .auth-panel,
+  .link-membership-section {
+    padding: 14px;
+  }
+
+  .auth-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .auth-tab {
+    padding: 10px 8px;
+  }
+
+  .membership-code-box {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .membership-code-box strong {
+    font-size: 16px;
+  }
+}

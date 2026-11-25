@@ -17,109 +17,413 @@ const list = document.getElementById("election-list");
 const statusTitle = document.getElementById("election-status-title");
 const statusDescription = document.getElementById("election-status-description");
 const statusPill = document.getElementById("election-status-pill");
-const savedKey = "shura-voter-elections-v1";
 
-function savedMemberships() {
-  try {
-    return JSON.parse(localStorage.getItem(savedKey) || "{}");
-  } catch {
-    return {};
-  }
-}
+let electionsCache = [];
+let rendering = false;
 
-function saveMembership(electionId, member) {
-  const all = savedMemberships();
-  all[electionId] = member;
-  localStorage.setItem(savedKey, JSON.stringify(all));
-}
-
-function removeSavedMembership(electionId) {
-  const all = savedMemberships();
-  delete all[electionId];
-  localStorage.setItem(savedKey, JSON.stringify(all));
-}
-
-function el(tag, cls, text) {
+function el(tag, cls, value) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
-  if (text !== undefined) node.textContent = text;
+  if (value !== undefined) node.textContent = value;
   return node;
 }
 
-// التحقق من جلسة الناخب
-async function ensureVoterSession(createIfMissing = true) {
-  let { data, error } = await db.auth.getSession();
+function normalizePhone(value) {
+  let phone = String(value || "").replace(/[\s()-]/g, "");
+
+  if (/^222\d{8}$/.test(phone)) phone = "+" + phone;
+  if (/^\d{8}$/.test(phone)) phone = "+222" + phone;
+
+  if (!/^\+222\d{8}$/.test(phone)) {
+    throw new Error("أدخل رقم الهاتف الموريتاني بشكل صحيح: 8 أرقام.");
+  }
+
+  return phone;
+}
+
+function showMessage(target, message, isError = false) {
+  target.textContent = message;
+  target.classList.toggle("error", isError);
+}
+
+async function getMemberships() {
+  const { data: sessionData, error: sessionError } =
+    await db.auth.getSession();
+
+  if (sessionError) throw sessionError;
+
+  if (!sessionData.session || sessionData.session.user.is_anonymous) {
+    return [];
+  }
+
+  const { data, error } = await db.rpc("get_my_membership_codes");
 
   if (error) throw error;
 
-  if (!data.session) {
-    if (!createIfMissing) {
-      throw new Error(
-        "جلسة عضويتك غير موجودة. أعد إدخال رمز العضوية، وقد تحتاج إلى التواصل مع الإدارة لاستعادة الوصول."
-      );
-    }
-
-    const signed = await db.auth.signInAnonymously();
-
-    if (signed.error) throw signed.error;
-
-    data = { session: signed.data.session };
-  }
-
-  if (!data.session?.user || data.session.user.is_anonymous !== true) {
-    throw new Error("جلسة الناخب غير صالحة.");
-  }
+  return data || [];
 }
 
-// عرض تقدم الناخب في التصويت
-async function loadProgress(electionId, card, member) {
-  card.replaceChildren();
+async function callVoterAccount(body) {
+  const { data, error } = await db.functions.invoke("voter-account", {
+    body
+  });
 
-  // لا ننشئ جلسة جديدة إذا كانت العضوية محفوظة مسبقاً
-  try {
-    await ensureVoterSession(false);
-  } catch (error) {
-    removeSavedMembership(electionId);
-
-    card.append(
-      el("p", "vote-message error", error.message)
-    );
-
-    card.append(
-      el(
-        "p",
-        "",
-        "يمكنك إعادة تحميل الصفحة لإدخال رمز العضوية من جديد. إذا رفض النظام الرمز، تواصل مع الإدارة."
-      )
-    );
-
-    const reloadButton = el("button", "vote-submit", "إعادة تحميل الصفحة");
-    reloadButton.type = "button";
-    reloadButton.addEventListener("click", () => {
-      window.location.reload();
-    });
-
-    card.append(reloadButton);
-    return;
+  if (!error) {
+    if (data?.error) throw new Error(data.error);
+    return data;
   }
 
-  card.append(
-    el("h3", "", member.full_name || "تم التحقق من العضوية")
-  );
+  let message = error.message || "تعذر تنفيذ الطلب.";
 
-  card.append(
+  try {
+    const response = error.context;
+    if (response && typeof response.json === "function") {
+      const details = await response.json();
+      message = details.error || message;
+    }
+  } catch (_) {}
+
+  throw new Error(message);
+}
+
+function createInput(type, placeholder, options = {}) {
+  const input = document.createElement("input");
+  input.type = type;
+  input.placeholder = placeholder;
+  input.required = options.required !== false;
+  input.autocomplete = options.autocomplete || "off";
+
+  if (options.maxLength) input.maxLength = options.maxLength;
+  if (options.inputMode) input.inputMode = options.inputMode;
+
+  return input;
+}
+
+function createFormField(labelText, input) {
+  const wrapper = el("label", "auth-field");
+  wrapper.append(el("span", "", labelText), input);
+  return wrapper;
+}
+
+function createButton(text) {
+  const button = el("button", "vote-submit", text);
+  button.type = "submit";
+  return button;
+}
+
+function createAuthPanel(election, membership) {
+  const panel = el("div", "auth-panel");
+
+  if (membership) return panel;
+
+  const heading = el("h4", "", "الدخول إلى حساب الناخب");
+  panel.append(heading);
+
+  const info = el(
+    "p",
+    "item-body",
+    "إذا كان لديك حساب سابق، سجل الدخول برقم هاتفك وكلمة المرور. وإذا كانت هذه أول مشاركة لك، أنشئ حساباً واربطه برمز العضوية."
+  );
+  panel.append(info);
+
+  const tabs = el("div", "auth-tabs");
+  const loginTab = el("button", "auth-tab active", "تسجيل الدخول");
+  const registerTab = el("button", "auth-tab", "حساب جديد");
+  loginTab.type = registerTab.type = "button";
+  tabs.append(loginTab, registerTab);
+  panel.append(tabs);
+
+  const formArea = el("div", "auth-form-area");
+  panel.append(formArea);
+
+  function showLogin() {
+    formArea.replaceChildren();
+    loginTab.classList.add("active");
+    registerTab.classList.remove("active");
+
+    const form = el("form", "membership-form");
+    const phone = createInput("tel", "رقم الهاتف", {
+      autocomplete: "tel",
+      inputMode: "tel"
+    });
+    const password = createInput("password", "كلمة المرور", {
+      autocomplete: "current-password"
+    });
+    const button = createButton("دخول");
+    const feedback = el("p", "vote-message", "");
+
+    form.append(
+      createFormField("رقم الهاتف", phone),
+      createFormField("كلمة المرور", password),
+      button,
+      feedback
+    );
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      button.textContent = "جارٍ تسجيل الدخول...";
+
+      try {
+        const normalizedPhone = normalizePhone(phone.value);
+
+        const { error } = await db.auth.signInWithPassword({
+          phone: normalizedPhone,
+          password: password.value
+        });
+
+        if (error) throw error;
+
+        await renderAllElections();
+      } catch (error) {
+        showMessage(
+          feedback,
+          error.message || "تعذر تسجيل الدخول.",
+          true
+        );
+        button.disabled = false;
+        button.textContent = "دخول";
+      }
+    });
+
+    formArea.append(form);
+  }
+
+  function showRegister() {
+    formArea.replaceChildren();
+    registerTab.classList.add("active");
+    loginTab.classList.remove("active");
+
+    const form = el("form", "membership-form");
+
+    const phone = createInput("tel", "رقم الهاتف", {
+      autocomplete: "tel",
+      inputMode: "tel"
+    });
+
+    const code = createInput("text", "الرمز الرباعي", {
+      autocomplete: "one-time-code",
+      inputMode: "numeric",
+      maxLength: 4
+    });
+
+    const password = createInput("password", "كلمة المرور", {
+      autocomplete: "new-password"
+    });
+
+    const confirmPassword = createInput(
+      "password",
+      "تأكيد كلمة المرور",
+      { autocomplete: "new-password" }
+    );
+
+    const button = createButton("إنشاء الحساب وربط العضوية");
+    const feedback = el("p", "vote-message", "");
+
+    form.append(
+      createFormField("رقم الهاتف", phone),
+      createFormField("رمز العضوية المكوّن من 4 أرقام", code),
+      createFormField("كلمة المرور (8 أحرف على الأقل)", password),
+      createFormField("تأكيد كلمة المرور", confirmPassword),
+      button,
+      feedback
+    );
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      if (!/^\d{4}$/.test(code.value.trim())) {
+        showMessage(feedback, "رمز العضوية يجب أن يتكون من 4 أرقام.", true);
+        return;
+      }
+
+      if (password.value.length < 8) {
+        showMessage(feedback, "كلمة المرور يجب ألا تقل عن 8 أحرف.", true);
+        return;
+      }
+
+      if (password.value !== confirmPassword.value) {
+        showMessage(feedback, "كلمتا المرور غير متطابقتين.", true);
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = "جارٍ إنشاء الحساب...";
+
+      try {
+        const normalizedPhone = normalizePhone(phone.value);
+
+        await callVoterAccount({
+          action: "register",
+          election_id: election.id,
+          phone: normalizedPhone,
+          code: code.value.trim(),
+          password: password.value
+        });
+
+        const { error: loginError } =
+          await db.auth.signInWithPassword({
+            phone: normalizedPhone,
+            password: password.value
+          });
+
+        if (loginError) {
+          throw new Error(
+            "تم إنشاء الحساب وربط العضوية. سجل الدخول الآن برقم الهاتف وكلمة المرور."
+          );
+        }
+
+        await renderAllElections();
+      } catch (error) {
+        showMessage(
+          feedback,
+          error.message || "تعذر إنشاء الحساب.",
+          true
+        );
+        button.disabled = false;
+        button.textContent = "إنشاء الحساب وربط العضوية";
+      }
+    });
+
+    formArea.append(form);
+  }
+
+  loginTab.addEventListener("click", showLogin);
+  registerTab.addEventListener("click", showRegister);
+
+  showLogin();
+
+  return panel;
+}
+
+function createLinkMembershipForm(election) {
+  const section = el("section", "link-membership-section");
+  section.append(
+    el("h4", "", "ربط عضوية أخرى"),
     el(
       "p",
-      "",
-      "أهلاً بك. يمكنك التصويت مرة واحدة في كل بند، وتبقى عضويتك محفوظة على هذا الجهاز."
+      "item-body",
+      "إذا كان لديك حساب دائم، يمكنك ربط عضويتك في هذه الانتخابات باستخدام رقم الهاتف ورمز العضوية الرباعي."
     )
   );
+
+  const form = el("form", "membership-form");
+
+  const phone = createInput("tel", "رقم الهاتف", {
+    autocomplete: "tel",
+    inputMode: "tel"
+  });
+
+  const code = createInput("text", "الرمز الرباعي", {
+    autocomplete: "one-time-code",
+    inputMode: "numeric",
+    maxLength: 4
+  });
+
+  const button = createButton("ربط العضوية");
+  const feedback = el("p", "vote-message", "");
+
+  form.append(
+    createFormField("رقم الهاتف", phone),
+    createFormField("رمز العضوية المكوّن من 4 أرقام", code),
+    button,
+    feedback
+  );
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!/^\d{4}$/.test(code.value.trim())) {
+      showMessage(feedback, "أدخل الرمز الرباعي الصحيح.", true);
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "جارٍ ربط العضوية...";
+
+    try {
+      const normalizedPhone = normalizePhone(phone.value);
+
+      await callVoterAccount({
+        action: "link",
+        election_id: election.id,
+        phone: normalizedPhone,
+        code: code.value.trim()
+      });
+
+      await renderAllElections();
+    } catch (error) {
+      showMessage(
+        feedback,
+        error.message || "تعذر ربط العضوية.",
+        true
+      );
+      button.disabled = false;
+      button.textContent = "ربط العضوية";
+    }
+  });
+
+  section.append(form);
+  return section;
+}
+
+function createAccountHeader(member) {
+  const box = el("div", "account-header");
+
+  box.append(
+    el("h3", "", "مرحباً " + (member.full_name || "بك")),
+    el("p", "", "تم التحقق من عضويتك بنجاح.")
+  );
+
+  const phone = el("p", "account-detail", "رقم الهاتف: " + (member.phone_e164 || "غير متاح"));
+  box.append(phone);
+
+  if (member.membership_code) {
+    const codeBox = el("div", "membership-code-box");
+    codeBox.append(
+      el("span", "", "رمز عضويتك"),
+      el("strong", "", member.membership_code)
+    );
+
+    const copy = el("button", "auth-tab", "نسخ الرمز");
+    copy.type = "button";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(member.membership_code);
+        copy.textContent = "تم النسخ";
+      } catch (_) {
+        copy.textContent = "تعذر النسخ";
+      }
+    });
+
+    codeBox.append(copy);
+    box.append(codeBox);
+  }
+
+  const logout = el("button", "auth-tab", "تسجيل الخروج");
+  logout.type = "button";
+  logout.addEventListener("click", async () => {
+    const { error } = await db.auth.signOut();
+    if (error) {
+      alert("تعذر تسجيل الخروج: " + error.message);
+      return;
+    }
+    await renderAllElections();
+  });
+
+  box.append(logout);
+  return box;
+}
+
+async function loadProgress(election, card, member) {
+  const account = createAccountHeader(member);
+  card.append(account);
 
   const {
     data: progress,
     error
   } = await db.rpc("get_voter_progress", {
-    p_election_id: electionId
+    p_election_id: election.id
   });
 
   if (error) {
@@ -136,7 +440,6 @@ async function loadProgress(electionId, card, member) {
 
   for (const item of progress) {
     const section = el("section", "vote-item");
-
     section.append(el("h4", "", item.item_title));
 
     if (item.item_body) {
@@ -147,218 +450,177 @@ async function loadProgress(electionId, card, member) {
       section.append(
         el("p", "voted-label", "✓ تم تسجيل صوتك في هذا البند")
       );
-    } else {
-      const {
-        data: options,
-        error: optionsError
-      } = await db
-        .from("election_item_options")
-        .select("id,label,description")
-        .eq("item_id", item.item_id)
-        .eq("is_active", true)
-        .order("sort_order");
-
-      if (optionsError) {
-        section.append(
-          el("p", "vote-message error", "تعذر تحميل الخيارات.")
-        );
-        card.append(section);
-        continue;
-      }
-
-      if (!options?.length) {
-        section.append(
-          el("p", "vote-message error", "لم تُضف خيارات لهذا البند بعد.")
-        );
-        card.append(section);
-        continue;
-      }
-
-      const form = el("form", "vote-form");
-      const group = el("div", "vote-options");
-
-      for (const option of options) {
-        const label = el("label", "vote-option");
-
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "choice";
-        radio.value = option.id;
-        radio.required = true;
-
-        label.append(radio, el("span", "", option.label));
-
-        if (option.description) {
-          label.append(el("small", "", option.description));
-        }
-
-        group.append(label);
-      }
-
-      form.append(group);
-
-      const submit = el("button", "vote-submit", "تأكيد التصويت");
-      submit.type = "submit";
-
-      const feedback = el("p", "vote-message", "");
-
-      form.append(submit, feedback);
-
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-
-        const selected = form.querySelector(
-          'input[name="choice"]:checked'
-        );
-
-        if (!selected) return;
-
-        submit.disabled = true;
-        submit.textContent = "جارٍ تسجيل الصوت...";
-
-        try {
-          const { error: voteError } = await db.rpc(
-            "cast_election_vote",
-            {
-              p_election_id: electionId,
-              p_item_id: item.item_id,
-              p_option_id: selected.value
-            }
-          );
-
-          if (voteError) {
-            feedback.textContent = voteError.message.includes("سبق لك")
-              ? "سبق تسجيل صوتك في هذا البند."
-              : voteError.message;
-
-            feedback.classList.add("error");
-            submit.disabled = false;
-            submit.textContent = "تأكيد التصويت";
-          } else {
-            await loadProgress(electionId, card, member);
-          }
-        } catch (error) {
-          feedback.textContent =
-            error.message || "حدث خطأ أثناء تسجيل التصويت.";
-
-          feedback.classList.add("error");
-          submit.disabled = false;
-          submit.textContent = "تأكيد التصويت";
-        }
-      });
-
-      section.append(form);
+      card.append(section);
+      continue;
     }
 
+    const {
+      data: options,
+      error: optionsError
+    } = await db
+      .from("election_item_options")
+      .select("id,label,description")
+      .eq("item_id", item.item_id)
+      .eq("is_active", true)
+      .order("sort_order");
+
+    if (optionsError) {
+      section.append(
+        el("p", "vote-message error", "تعذر تحميل خيارات التصويت.")
+      );
+      card.append(section);
+      continue;
+    }
+
+    if (!options?.length) {
+      section.append(
+        el("p", "vote-message error", "لم تُضف خيارات لهذا البند بعد.")
+      );
+      card.append(section);
+      continue;
+    }
+
+    const form = el("form", "vote-form");
+    const group = el("div", "vote-options");
+
+    for (const option of options) {
+      const label = el("label", "vote-option");
+      const radio = document.createElement("input");
+
+      radio.type = "radio";
+      radio.name = "choice";
+      radio.value = option.id;
+      radio.required = true;
+
+      label.append(radio, el("span", "", option.label));
+
+      if (option.description) {
+        label.append(el("small", "", option.description));
+      }
+
+      group.append(label);
+    }
+
+    const submit = createButton("تأكيد التصويت");
+    const feedback = el("p", "vote-message", "");
+
+    form.append(group, submit, feedback);
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const selected = form.querySelector(
+        'input[name="choice"]:checked'
+      );
+
+      if (!selected) return;
+
+      const confirmed = window.confirm(
+        "هل أنت متأكد من اختيارك؟ لا يمكن تكرار التصويت في هذا البند."
+      );
+
+      if (!confirmed) return;
+
+      submit.disabled = true;
+      submit.textContent = "جارٍ تسجيل الصوت...";
+
+      try {
+        const { error: voteError } = await db.rpc(
+          "cast_election_vote",
+          {
+            p_election_id: election.id,
+            p_item_id: item.item_id,
+            p_option_id: selected.value
+          }
+        );
+
+        if (voteError) throw voteError;
+
+        await renderAllElections();
+      } catch (error) {
+        showMessage(
+          feedback,
+          error.message || "حدث خطأ أثناء تسجيل التصويت.",
+          true
+        );
+        submit.disabled = false;
+        submit.textContent = "تأكيد التصويت";
+      }
+    });
+
+    section.append(form);
     card.append(section);
   }
 }
 
-// عرض الانتخابات ونموذج إدخال رمز العضوية
-async function renderElection(election) {
+async function renderElection(election, memberships) {
   const card = el("article", "election-card");
-
   card.append(el("h3", "", election.title));
 
   if (election.description) {
     card.append(el("p", "", election.description));
   }
 
-  const saved = savedMemberships()[election.id];
+  const member = memberships.find(
+    item => item.election_id === election.id
+  );
 
-  if (saved?.verified) {
-    await loadProgress(election.id, card, saved);
+  if (member) {
+    await loadProgress(election, card, member);
     return card;
   }
 
-  card.append(
-    el(
-      "p",
-      "",
-      "أدخل رمز العضوية المخصص لك للمشاركة في هذه الانتخابات."
-    )
-  );
+  const { data: sessionData, error } = await db.auth.getSession();
 
-  const form = el("form", "membership-form");
+  if (error) throw error;
 
-  const input = document.createElement("input");
-  input.type = "text";
-  input.inputMode = "text";
-  input.autocomplete = "one-time-code";
-  input.maxLength = 24;
-  input.minLength = 24;
-  input.required = true;
-  input.placeholder = "رمز العضوية المكوّن من 24 خانة";
-  input.setAttribute("aria-label", "رمز العضوية");
+  const session = sessionData.session;
+  const permanentAccount =
+    session && session.user && session.user.is_anonymous !== true;
 
-  const button = el("button", "vote-submit", "التحقق والدخول");
-  button.type = "submit";
-
-  const feedback = el("p", "vote-message", "");
-
-  form.append(input, button, feedback);
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-
-    const code = input.value.trim().toUpperCase().replace(/\s/g, "");
-
-    if (!/^[A-F0-9]{24}$/.test(code)) {
-      feedback.textContent =
-        "تحقق من الرمز؛ يجب أن يتكون من 24 خانة من الأحرف A-F والأرقام.";
-
-      feedback.classList.add("error");
-      return;
-    }
-
-    button.disabled = true;
-    button.textContent = "جارٍ التحقق...";
-
-    try {
-      await ensureVoterSession();
-
-      const {
-        data,
-        error
-      } = await db.rpc("redeem_membership_code", {
-        p_election_id: election.id,
-        p_code: code
-      });
-
-      if (error) throw error;
-
-      if (!data?.length) {
-        throw new Error("لم يتم العثور على عضوية مطابقة لهذا الرمز.");
-      }
-
-      const member = {
-        voter_id: data[0].voter_id,
-        full_name: data[0].full_name,
-        verified: true
-      };
-
-      saveMembership(election.id, member);
-
-      await loadProgress(election.id, card, member);
-
-    } catch (error) {
-      feedback.textContent =
-        error.message || "تعذر التحقق من الرمز.";
-
-      feedback.classList.add("error");
-
-      button.disabled = false;
-      button.textContent = "التحقق والدخول";
-    }
-  });
-
-  card.append(form);
+  if (permanentAccount) {
+    card.append(
+      el(
+        "p",
+        "",
+        "أنت مسجل الدخول بحساب دائم، لكن هذه العضوية لم تُربط به بعد."
+      )
+    );
+    card.append(createLinkMembershipForm(election));
+  } else {
+    card.append(createAuthPanel(election, null));
+  }
 
   return card;
 }
 
-// تحميل الانتخابات المنشورة
-(async function init() {
+async function renderAllElections() {
+  if (rendering) return;
+  rendering = true;
+
+  try {
+    const memberships = await getMemberships();
+    list.replaceChildren();
+
+    for (const election of electionsCache) {
+      const card = await renderElection(election, memberships);
+      list.append(card);
+    }
+  } catch (error) {
+    console.error(error);
+    list.replaceChildren(
+      el(
+        "p",
+        "vote-message error",
+        error.message || "تعذر تحميل بيانات العضوية."
+      )
+    );
+  } finally {
+    rendering = false;
+  }
+}
+
+async function init() {
   try {
     const {
       data: elections,
@@ -366,16 +628,16 @@ async function renderElection(election) {
     } = await db
       .from("elections")
       .select(
-        "id,title,description,status,is_published,starts_at,ends_at"
+        "id,title,description,status,is_published,starts_at,ends_at,created_at"
       )
       .eq("is_published", true)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    list.replaceChildren();
+    electionsCache = elections || [];
 
-    if (!elections?.length) {
+    if (!electionsCache.length) {
       statusTitle.textContent = "لا توجد انتخابات منشورة حالياً";
       statusDescription.textContent =
         "ستظهر الانتخابات هنا بعد إعلان لجنة الإشراف عنها.";
@@ -384,25 +646,23 @@ async function renderElection(election) {
     }
 
     statusTitle.textContent =
-      "الانتخابات المنشورة: " + elections.length;
+      "الانتخابات المنشورة: " + electionsCache.length;
 
     statusDescription.textContent =
-      "استخدم رمز العضوية المخصص لك للدخول والتصويت.";
+      "سجل الدخول أو أنشئ حساباً دائماً لربط عضويتك والمشاركة.";
 
     statusPill.textContent = "اتصال مباشر";
 
-    for (const election of elections) {
-      list.append(await renderElection(election));
-    }
+    await renderAllElections();
 
   } catch (error) {
     console.error(error);
 
     statusTitle.textContent = "تعذر تحميل بيانات الانتخابات";
-
     statusDescription.textContent =
       error.message || "تحقق من الاتصال بالمنصة.";
-
     statusPill.textContent = "تعذر الاتصال";
   }
-})();
+}
+
+init();

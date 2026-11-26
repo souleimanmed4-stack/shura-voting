@@ -47,35 +47,18 @@
       <h2>إدارة المحررين</h2>
 
       <p>
-        يمكنك إنشاء حساب محرر وتحديد الصلاحيات التي تسمح له باستخدامها.
-        لا يتم إرسال دعوة بريدية.
+        هذه الخاصية متاحة للمدير العام فقط.
+        يجب أن يكون حساب المحرر موجوداً مسبقاً في نظام تسجيل الدخول
+        Supabase Auth، ثم يُربط هنا بالبريد الإلكتروني وتُحدد صلاحياته.
       </p>
 
       <form id="editor-form">
 
-        <label for="editor-name">اسم المحرر</label>
-        <input id="editor-name" type="text" maxlength="120" required>
+        <label for="editor-name">اسم المحرر (للتعريف)</label>
+        <input id="editor-name" type="text" maxlength="120">
 
-        <label for="editor-email">البريد الإلكتروني (اسم الدخول)</label>
+        <label for="editor-email">البريد الإلكتروني للحساب الموجود</label>
         <input id="editor-email" type="email" required>
-
-        <label for="editor-password">كلمة المرور (10 أحرف على الأقل)</label>
-        <input
-          id="editor-password"
-          type="password"
-          minlength="10"
-          autocomplete="new-password"
-          required
-        >
-
-        <label for="editor-password-confirm">تأكيد كلمة المرور</label>
-        <input
-          id="editor-password-confirm"
-          type="password"
-          minlength="10"
-          autocomplete="new-password"
-          required
-        >
 
         <fieldset class="permission-fieldset">
           <legend>صلاحيات المحرر</legend>
@@ -117,7 +100,7 @@
         </fieldset>
 
         <button id="create-editor-button" type="submit">
-          إنشاء حساب المحرر
+          ربط الحساب وإضافة المحرر
         </button>
 
         <p id="editor-message" aria-live="polite"></p>
@@ -139,7 +122,7 @@
         <textarea id="description"></textarea>
 
         <button type="submit">حفظ كمسودة</button>
-        <p id="election-message"></p>
+        <p id="election-message" aria-live="polite"></p>
       </form>
     </section>
 
@@ -174,7 +157,7 @@
         ></textarea>
 
         <button type="submit">حفظ البند وخياراته</button>
-        <p id="item-message"></p>
+        <p id="item-message" aria-live="polite"></p>
       </form>
     </section>
 
@@ -183,6 +166,8 @@
       <h2>إدارة الأعضاء ورموز العضوية</h2>
 
       <div id="voter-add-area" hidden>
+        <h3>إضافة عضو جديد</h3>
+
         <form id="voter-form">
 
           <label for="voter-election">الانتخابات</label>
@@ -191,7 +176,7 @@
           </select>
 
           <label for="voter-name">اسم العضو</label>
-          <input id="voter-name" required>
+          <input id="voter-name" required maxlength="150">
 
           <label for="voter-phone">رقم الهاتف (مع مفتاح الدولة)</label>
           <input id="voter-phone" required placeholder="+222...">
@@ -203,6 +188,7 @@
       </div>
 
       <div class="toolbar" id="voter-refresh-area" hidden>
+        <label for="voter-election">اختر الانتخابات لعرض بياناتها</label>
         <button type="button" id="load-voters">تحديث البيانات</button>
       </div>
 
@@ -224,7 +210,8 @@
       </div>
 
       <div id="results-area" hidden>
-        <h3>النتائج الإجمالية — دون ربط الاختيار باسم صاحبه</h3>
+        <h3>النتائج الإجمالية</h3>
+        <p>تعرض النتائج أعداد الأصوات ونسبها دون ربط الاختيار باسم صاحبه.</p>
         <div class="table-wrap">
           <table id="results-table"></table>
         </div>
@@ -241,7 +228,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="admin.js?v=20261124-2"></script>
+<script src="admin.js?v=20261126-1"></script>
 
 </body>
 </html>

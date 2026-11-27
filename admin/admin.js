@@ -140,6 +140,10 @@ async function checkSession() {
     document.dispatchEvent(new Event("shura-admin-ready"));
 
     await load();
+    
+    if (isSuperAdmin()) {
+  await loadEditors();
+}
 
   } catch (error) {
     showLoginError("تعذر التحقق من الصلاحيات: " + error.message);

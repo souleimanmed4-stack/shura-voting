@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -48,59 +47,33 @@
 
       <p>
         هذه الخاصية متاحة للمدير العام فقط.
-        يجب أن يكون حساب المحرر موجوداً مسبقاً في نظام تسجيل الدخول
-        Supabase Auth، ثم يُربط هنا بالبريد الإلكتروني وتُحدد صلاحياته.
+        أدخل البريد الإلكتروني وكلمة المرور لإنشاء حساب جديد للمحرر.
+        سيُربط الحساب تلقائياً بدور المحرر والصلاحيات المحددة مسبقاً.
       </p>
 
       <form id="editor-form">
 
-        <label for="editor-name">اسم المحرر (للتعريف)</label>
-        <input id="editor-name" type="text" maxlength="120">
+        <label for="editor-email">البريد الإلكتروني</label>
+        <input
+          id="editor-email"
+          type="email"
+          autocomplete="off"
+          required
+        >
 
-        <label for="editor-email">البريد الإلكتروني للحساب الموجود</label>
-        <input id="editor-email" type="email" required>
+        <label for="editor-password">كلمة المرور</label>
+        <input
+          id="editor-password"
+          type="password"
+          autocomplete="new-password"
+          minlength="8"
+          required
+        >
 
-        <fieldset class="permission-fieldset">
-          <legend>صلاحيات المحرر</legend>
-
-          <label class="check-label">
-            <input type="checkbox" name="editor-permission" value="elections_create">
-            إنشاء الانتخابات
-          </label>
-
-          <label class="check-label">
-            <input type="checkbox" name="editor-permission" value="elections_edit">
-            تعديل الانتخابات والبنود
-          </label>
-
-          <label class="check-label">
-            <input type="checkbox" name="editor-permission" value="elections_publish">
-            نشر الانتخابات وإيقافها
-          </label>
-
-          <label class="check-label">
-            <input type="checkbox" name="editor-permission" value="voters_manage">
-            إدارة الأعضاء ورموز العضوية
-          </label>
-
-          <label class="check-label">
-            <input type="checkbox" name="editor-permission" value="results_view">
-            عرض النتائج الإجمالية
-          </label>
-
-          <label class="check-label">
-            <input type="checkbox" name="editor-permission" value="participation_view">
-            متابعة المشاركة
-          </label>
-
-          <label class="check-label">
-            <input type="checkbox" name="editor-permission" value="reports_view">
-            إعداد التقارير
-          </label>
-        </fieldset>
+        <small>يجب ألا تقل كلمة المرور عن 8 أحرف.</small>
 
         <button id="create-editor-button" type="submit">
-          ربط الحساب وإضافة المحرر
+          إنشاء حساب المحرر
         </button>
 
         <p id="editor-message" aria-live="polite"></p>
@@ -298,7 +271,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="admin.js?v=20261127-1"></script>
+<script src="admin.js?v=20261127-2"></script>
 <script src="central-members.js?v=20261127-1"></script>
 
 </body>

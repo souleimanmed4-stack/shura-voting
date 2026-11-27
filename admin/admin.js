@@ -7,10 +7,13 @@ let db = null;
 let checking = false;
 let currentAccess = null;
 let electionsCache = [];
+let editorsCache = [];
+let selectedEditor = null;
 
 const PERMISSIONS = {
   elections_create: "إنشاء الانتخابات",
   elections_edit: "تعديل الانتخابات والبنود",
+  elections_publish: "نشر الانتخابات وإيقافها",
   voters_manage: "إدارة الأعضاء ورموز العضوية",
   results_view: "عرض النتائج الإجمالية",
   participation_view: "متابعة المشاركة",
@@ -689,46 +692,141 @@ async function loadEditors() {
   try {
     const editors = await rpc("admin_list_editors");
 
+    editorsCache = editors || [];
+
+    const select = $("editor-select");
     const container = $("editors-list");
-    if (!container) return;
 
-    container.replaceChildren();
+    if (!select) return;
 
-    for (const editor of editors || []) {
-      const card = document.createElement("article");
-      card.className = "entry";
+    const previousId = select.value;
 
-      const title = document.createElement("h4");
-      title.textContent = editor.email;
+    select.replaceChildren(
+      new Option("اختر محرراً", "")
+    );
 
-      const state = document.createElement("p");
-      state.textContent =
-        (editor.is_active ? "الحساب نشط" : "الحساب معطّل") +
-        " · " + (editor.role || "editor");
-
-      const permissionText = document.createElement("p");
-      permissionText.textContent =
-        (editor.permissions || [])
-          .map(key => PERMISSIONS[key] || key)
-          .join("، ") || "لا توجد صلاحيات محددة";
-
-      const toggle = makeButton(
-        editor.is_active ? "تعطيل المحرر" : "تفعيل المحرر",
-        () => toggleEditor(editor)
+    editorsCache.forEach(editor => {
+      select.add(
+        new Option(
+          editor.email + (editor.is_active ? " — نشط" : " — معطّل"),
+          editor.user_id
+        )
       );
+    });
 
-      card.append(title, state, permissionText, toggle);
-      container.append(card);
+    if (previousId && editorsCache.some(
+      editor => editor.user_id === previousId
+    )) {
+      select.value = previousId;
+    } else {
+      select.value = "";
     }
 
-    if (!editors || !editors.length) {
-      container.textContent = "لا يوجد محررون مسجلون حالياً.";
+    if (container) {
+      container.textContent = editorsCache.length
+        ? "عدد المحررين المسجلين: " + editorsCache.length
+        : "لا يوجد محررون مسجلون حالياً.";
     }
+
+    renderSelectedEditor();
+
   } catch (error) {
     showMessage("editor-message", error.message, true);
   }
 }
 
+function renderSelectedEditor() {
+  const id = $("editor-select")?.value;
+
+  selectedEditor = editorsCache.find(
+    editor => editor.user_id === id
+  ) || null;
+
+  const details = $("editor-details");
+  const permissionsBox = $("editor-permissions");
+
+  if (!selectedEditor) {
+    details.hidden = true;
+    permissionsBox.replaceChildren();
+    return;
+  }
+
+  details.hidden = false;
+
+  $("editor-status").textContent =
+    "البريد: " + selectedEditor.email +
+    " — الحالة: " +
+    (selectedEditor.is_active ? "نشط" : "معطّل");
+
+  permissionsBox.replaceChildren();
+
+  Object.entries(PERMISSIONS).forEach(([key, label]) => {
+    const wrapper = document.createElement("label");
+    wrapper.className = "check-label";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = key;
+    checkbox.checked =
+      (selectedEditor.permissions || []).includes(key);
+
+    const text = document.createElement("span");
+    text.textContent = label;
+
+    wrapper.append(checkbox, text);
+    permissionsBox.append(wrapper);
+  });
+
+  $("toggle-editor").textContent =
+    selectedEditor.is_active
+      ? "تعطيل المحرر"
+      : "تفعيل المحرر";
+}
+
+async function saveEditorPermissions() {
+  if (!isSuperAdmin() || !selectedEditor) return;
+
+  const permissions = Array.from(
+    $("editor-permissions").querySelectorAll(
+      'input[type="checkbox"]:checked'
+    )
+  ).map(input => input.value);
+
+  if (!confirm("هل تريد حفظ الصلاحيات الجديدة لهذا المحرر؟")) {
+    return;
+  }
+
+  try {
+    await rpc("admin_update_editor_permissions", {
+      p_user_id: selectedEditor.user_id,
+      p_permissions: permissions
+    });
+
+    showMessage("editor-message", "تم تحديث صلاحيات المحرر بنجاح.");
+
+    await loadEditors();
+
+  } catch (error) {
+    showMessage("editor-message", error.message, true);
+  }
+}
+if ($("editor-select")) {
+  $("editor-select").addEventListener("change", renderSelectedEditor);
+}
+
+if ($("save-editor-permissions")) {
+  $("save-editor-permissions").addEventListener(
+    "click",
+    saveEditorPermissions
+  );
+}
+
+if ($("toggle-editor")) {
+  $("toggle-editor").addEventListener("click", async () => {
+    if (!selectedEditor) return;
+    await toggleEditor(selectedEditor);
+  });
+}
 async function toggleEditor(editor) {
   if (!isSuperAdmin()) return;
 

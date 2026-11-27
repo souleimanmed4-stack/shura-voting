@@ -79,8 +79,35 @@
         <p id="editor-message" aria-live="polite"></p>
       </form>
 
-      <h3>المحررون المسجلون</h3>
-      <div id="editors-list"></div>
+      <hr>
+
+<h3>اختيار المحرر لإدارة حسابه</h3>
+
+<label for="editor-select">المحرر</label>
+<select id="editor-select">
+  <option value="">اختر محرراً</option>
+</select>
+
+<div id="editor-details" hidden>
+  <div id="editor-status"></div>
+
+  <fieldset class="permission-fieldset">
+    <legend>صلاحيات المحرر</legend>
+    <div id="editor-permissions"></div>
+  </fieldset>
+
+  <div class="editor-actions">
+    <button type="button" id="save-editor-permissions">
+      حفظ الصلاحيات
+    </button>
+
+    <button type="button" id="toggle-editor">
+      تعطيل المحرر
+    </button>
+  </div>
+</div>
+
+<div id="editors-list"></div>
     </section>
 
     <!-- إنشاء انتخابات -->

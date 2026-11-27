@@ -161,7 +161,7 @@
       </form>
     </section>
 
-    <!-- إدارة الأعضاء -->
+    <!-- إدارة الأعضاء القديمة -->
     <section class="panel" id="voter-management-panel" hidden>
       <h2>إدارة الأعضاء ورموز العضوية</h2>
 
@@ -216,6 +216,76 @@
           <table id="results-table"></table>
         </div>
       </div>
+    </section>
+
+    <!-- سجل العضوية المركزي الجديد -->
+    <section class="panel" id="central-members-panel" hidden>
+      <h2>سجل العضوية المركزي</h2>
+
+      <p>
+        سجل موحد للأعضاء، يحتفظ كل عضو فيه برقم عضويته الثابت
+        عبر الانتخابات المختلفة.
+      </p>
+
+      <h3>إضافة عضو جديد</h3>
+
+      <form id="central-member-form">
+        <label for="central-member-name">اسم العضو (اختياري)</label>
+        <input id="central-member-name" type="text" maxlength="150">
+
+        <label for="central-member-phone">رقم الهاتف</label>
+        <input
+          id="central-member-phone"
+          type="tel"
+          required
+          placeholder="+222..."
+        >
+
+        <button type="submit">إضافة العضو وإنشاء رمز العضوية</button>
+      </form>
+
+      <div id="central-member-code-result" class="code-result" hidden></div>
+      <p id="central-member-message" aria-live="polite"></p>
+
+      <hr>
+
+      <h3>البحث في سجل العضوية</h3>
+
+      <div class="toolbar">
+        <input
+          id="central-member-search"
+          type="search"
+          placeholder="ابحث بالاسم أو الهاتف أو آخر رقمين من الرمز"
+        >
+
+        <button type="button" id="central-member-search-button">
+          بحث
+        </button>
+
+        <button type="button" id="central-member-refresh">
+          تحديث
+        </button>
+      </div>
+
+      <div class="table-wrap">
+        <table id="central-member-table"></table>
+      </div>
+
+      <hr>
+
+      <h3>ربط عضو بانتخابات</h3>
+
+      <form id="central-member-election-form">
+        <label for="central-member-id">معرّف العضو</label>
+        <input id="central-member-id" required>
+
+        <label for="central-member-election">الانتخابات</label>
+        <select id="central-member-election" required>
+          <option value="">اختر الانتخابات</option>
+        </select>
+
+        <button type="submit">ربط العضو بالانتخابات</button>
+      </form>
     </section>
 
     <!-- عرض الانتخابات -->

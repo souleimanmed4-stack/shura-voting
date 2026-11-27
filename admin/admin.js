@@ -1,4 +1,3 @@
-
 const SUPABASE_URL = "https://zwduejenlwnixsfpmqqx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_QmwmpdoxTwZIr-YOfbAhGw_8Ep8nEDv";
 
@@ -12,7 +11,6 @@ let electionsCache = [];
 const PERMISSIONS = {
   elections_create: "إنشاء الانتخابات",
   elections_edit: "تعديل الانتخابات والبنود",
-  elections_publish: "نشر الانتخابات وإيقافها",
   voters_manage: "إدارة الأعضاء ورموز العضوية",
   results_view: "عرض النتائج الإجمالية",
   participation_view: "متابعة المشاركة",
@@ -38,7 +36,8 @@ function hasPermission(permission) {
 }
 
 function isSuperAdmin() {
-  return currentAccess?.role === "super_admin";
+  return currentAccess?.role === "super_admin" &&
+    currentAccess?.is_active === true;
 }
 
 function makeButton(label, handler, className = "") {
@@ -82,18 +81,6 @@ function makeTable(table, headers, rows) {
   }
 
   table.append(thead, tbody);
-}
-
-function selectedPermissions() {
-  return Array.from(
-    document.querySelectorAll('input[name="editor-permission"]:checked')
-  ).map(input => input.value);
-}
-
-function checkedPermissions(values = []) {
-  document.querySelectorAll('input[name="editor-permission"]').forEach(input => {
-    input.checked = values.includes(input.value);
-  });
 }
 
 async function rpc(name, args = {}) {
@@ -230,7 +217,7 @@ async function load() {
 
   electionsCache = data || [];
 
-  ["item-election", "voter-election"].forEach(id => {
+  ["item-election", "voter-election", "central-member-election"].forEach(id => {
     const select = $(id);
     if (!select) return;
 
@@ -699,6 +686,8 @@ async function loadEditors() {
     const editors = await rpc("admin_list_editors");
 
     const container = $("editors-list");
+    if (!container) return;
+
     container.replaceChildren();
 
     for (const editor of editors || []) {
@@ -719,17 +708,12 @@ async function loadEditors() {
           .map(key => PERMISSIONS[key] || key)
           .join("، ") || "لا توجد صلاحيات محددة";
 
-      const editPermissions = makeButton(
-        "تعديل الصلاحيات",
-        () => editEditorPermissions(editor)
-      );
-
       const toggle = makeButton(
         editor.is_active ? "تعطيل المحرر" : "تفعيل المحرر",
         () => toggleEditor(editor)
       );
 
-      card.append(title, state, permissionText, editPermissions, toggle);
+      card.append(title, state, permissionText, toggle);
       container.append(card);
     }
 
@@ -738,46 +722,6 @@ async function loadEditors() {
     }
   } catch (error) {
     showMessage("editor-message", error.message, true);
-  }
-}
-
-async function editEditorPermissions(editor) {
-  if (!isSuperAdmin()) return;
-
-  const current = editor.permissions || [];
-  const lines = Object.entries(PERMISSIONS)
-    .map(([key, label]) => {
-      return (current.includes(key) ? "[x] " : "[ ] ") +
-        key + " — " + label;
-    })
-    .join("\n");
-
-  const answer = prompt(
-    "أدخل مفاتيح الصلاحيات المطلوبة مفصولة بفواصل:\n\n" +
-    lines + "\n\nمثال: voters_manage,results_view"
-  );
-
-  if (answer === null) return;
-
-  const permissions = answer
-    .split(",")
-    .map(value => value.trim())
-    .filter(Boolean);
-
-  if (permissions.some(key => !Object.prototype.hasOwnProperty.call(PERMISSIONS, key))) {
-    alert("توجد صلاحية غير معتمدة.");
-    return;
-  }
-
-  try {
-    await rpc("admin_update_editor_permissions", {
-      p_user_id: editor.user_id,
-      p_permissions: permissions
-    });
-
-    await loadEditors();
-  } catch (error) {
-    alert(error.message);
   }
 }
 
@@ -802,39 +746,72 @@ async function toggleEditor(editor) {
   }
 }
 
+/* إنشاء حساب محرر جديد */
 if ($("editor-form")) {
   $("editor-form").addEventListener("submit", async event => {
     event.preventDefault();
 
     if (!isSuperAdmin()) {
-      showMessage("editor-message", "هذه العملية متاحة للمدير العام فقط.", true);
+      showMessage(
+        "editor-message",
+        "إنشاء حسابات المحررين متاح للمدير العام فقط.",
+        true
+      );
       return;
     }
 
     const email = $("editor-email").value.trim();
-    const permissions = selectedPermissions();
+    const password = $("editor-password").value;
+    const button = $("create-editor-button");
 
-    if (!email || !permissions.length) {
-      showMessage("editor-message", "أدخل البريد وحدد صلاحية واحدة على الأقل.", true);
+    if (!email || !password) {
+      showMessage(
+        "editor-message",
+        "أدخل البريد الإلكتروني وكلمة المرور.",
+        true
+      );
       return;
     }
 
+    if (password.length < 8) {
+      showMessage(
+        "editor-message",
+        "كلمة المرور يجب ألا تقل عن 8 أحرف.",
+        true
+      );
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "جارٍ إنشاء الحساب...";
+
     try {
-      await rpc("admin_add_editor", {
-        p_email: email,
-        p_permissions: permissions
+      const { data, error } = await db.functions.invoke("hyper-action", {
+        body: { email, password }
       });
+
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || "تعذر إنشاء الحساب.");
+      }
 
       showMessage(
         "editor-message",
-        "تم ربط الحساب الموجود في Supabase Auth بصلاحيات المحرر."
+        "تم إنشاء حساب المحرر بنجاح: " + data.editor.email
       );
 
       event.target.reset();
       await loadEditors();
 
     } catch (error) {
-      showMessage("editor-message", error.message, true);
+      showMessage(
+        "editor-message",
+        error.message || "حدث خطأ أثناء إنشاء الحساب.",
+        true
+      );
+    } finally {
+      button.disabled = false;
+      button.textContent = "إنشاء حساب المحرر";
     }
   });
 }

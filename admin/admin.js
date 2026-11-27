@@ -120,6 +120,7 @@ async function checkSession() {
 
     if (!session) {
       currentAccess = null;
+      window.shuraAdminAccess = null;
       setVisible("login-panel", true);
       setVisible("dashboard", false);
       return;
@@ -131,11 +132,13 @@ async function checkSession() {
     if (!access || !access.is_active) {
       await db.auth.signOut();
       currentAccess = null;
+      window.shuraAdminAccess = null;
       showLoginError("هذا الحساب غير نشط أو غير مخوّل لدخول لوحة الإدارة.");
       return;
     }
 
     currentAccess = access;
+    window.shuraAdminAccess = access;
 
     setVisible("login-panel", false);
     setVisible("dashboard", true);
@@ -146,6 +149,9 @@ async function checkSession() {
       access.role === "committee" ? "اللجنة" : "محرر";
 
     applyPermissions();
+
+    document.dispatchEvent(new Event("shura-admin-ready"));
+
     await load();
 
   } catch (error) {
@@ -173,6 +179,11 @@ function applyPermissions() {
     hasPermission("voters_manage") ||
     hasPermission("participation_view") ||
     hasPermission("results_view")
+  );
+
+  setVisible(
+    "central-members-panel",
+    hasPermission("voters_manage")
   );
 
   setVisible(
@@ -833,6 +844,7 @@ if ($("signout")) {
   $("signout").addEventListener("click", async () => {
     await db.auth.signOut();
     currentAccess = null;
+    window.shuraAdminAccess = null;
     await checkSession();
   });
 }
@@ -879,9 +891,12 @@ try {
     SUPABASE_KEY
   );
 
+  window.shuraAdminDb = db;
+
   db.auth.onAuthStateChange(event => {
     if (event === "SIGNED_OUT") {
       currentAccess = null;
+      window.shuraAdminAccess = null;
       checkSession();
     }
   });
